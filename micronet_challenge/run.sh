@@ -1,4 +1,3 @@
-# coding=utf-8
 # Copyright 2019 The Google Research Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Package version."""
+#!/bin/bash
+set -e
+set -x
 
-__version__ = '0.0.1'
-VERSION = __version__
+virtualenv -p python3 .
+source ./bin/activate
+
+pip install tensorflow
+python -m micronet_challenge.counting
+

@@ -13,24 +13,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for generated random variables."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-from absl.testing import absltest
-import scipy.stats
-
-import simple_probabilistic_programming.numpy as ed
-
-
-class GeneratedRandomVariablesTest(absltest.TestCase):
-
-  def testBernoulli(self):
-    self.assertEqual(ed.bernoulli.__doc__, scipy.stats.bernoulli.__doc__)
-    self.assertEqual(ed.bernoulli.logpmf(0, p=0.2),
-                     scipy.stats.bernoulli.logpmf(0, p=0.2))
-
-if __name__ == "__main__":
-  absltest.main()
