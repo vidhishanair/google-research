@@ -50,7 +50,7 @@ args.DEFINE_boolean("annotate_short_answers", True,
 args.DEFINE_boolean("annotate_question", True, "Flag to annotate questions")
 
 
-def extract_and_tokenize_text(item, tokens):
+def extract_and_tokenize_text(item, tokens, should_limit=False):
   """Extracts the tokens in passage, tokenizes them using sling tokenizer."""
   start_token = item["start_token"]
   end_token = item["end_token"]
@@ -60,6 +60,8 @@ def extract_and_tokenize_text(item, tokens):
         for x in tokens[start_token:end_token]
         if not x["html_token"]
     ]
+    if should_limit:
+        non_html_tokens = non_html_tokens[:20000]
     answer = " ".join([x["token"] for x in non_html_tokens])
     answer_map = [idx for idx, x in enumerate(non_html_tokens)]
     doc = sling.tokenize(str(answer))
@@ -73,7 +75,7 @@ def is_sling_entity(item):
           "Q")
 
 
-def prepare_sling_input_corpus(nq_data, sling_input_corpus):
+def prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id):
   """Parse each paragrapgh in NQ (LA candidate, LA, SA, question).
 
      Prepare a sling corpus to do entity linking.
@@ -89,7 +91,8 @@ def prepare_sling_input_corpus(nq_data, sling_input_corpus):
     tokens = nq_data[i]["document_tokens"]
     if ARGS.annotate_candidates:
       for idx, la_cand in enumerate(nq_data[i]["long_answer_candidates"]):
-        answer, answer_map, doc = extract_and_tokenize_text(la_cand, tokens)
+        should_limit = (task_id==21 and shard_id==2 and i=='121' and idx==174)
+        answer, answer_map, doc = extract_and_tokenize_text(la_cand, tokens, should_limit)
         if answer:
           nq_data[i]["long_answer_candidates"][idx]["text_answer"] = answer
           nq_data[i]["long_answer_candidates"][idx]["answer_map"] = answer_map
@@ -102,7 +105,7 @@ def prepare_sling_input_corpus(nq_data, sling_input_corpus):
           continue
         for sid in range(len(short_ans)):
           ans = short_ans[sid]
-          answer, answer_map, doc = extract_and_tokenize_text(ans, tokens)
+          answer, answer_map, doc = extract_and_tokenize_text(ans, tokens, True)
           if answer:
             nq_data[i]["annotations"][idx]["short_answers"][sid][
                 "text_answer"] = answer
@@ -113,7 +116,7 @@ def prepare_sling_input_corpus(nq_data, sling_input_corpus):
     if ARGS.annotate_long_answers:
       for idx, ann in enumerate(nq_data[i]["annotations"]):
         long_ans = ann["long_answer"]
-        answer, answer_map, doc = extract_and_tokenize_text(long_ans, tokens)
+        answer, answer_map, doc = extract_and_tokenize_text(long_ans, tokens, True)
         if answer:
           nq_data[i]["annotations"][idx]["long_answer"]["text_answer"] = answer
           nq_data[i]["annotations"][idx]["long_answer"][
@@ -224,7 +227,7 @@ def get_examples(data_dir, mode, task_id, shard_id):
   tf.logging.info("Preparing sling corpus: ")
   sling_input_corpus = os.path.join(ARGS.files_dir, "sling_input_corpus_tmp5.rec")
   sling_output_corpus = os.path.join(ARGS.files_dir, "nq_labelled_output_tmp5.rec")
-  prepare_sling_input_corpus(nq_data, sling_input_corpus)
+  prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id)
 
   tf.logging.info("Performing Sling NER Labeling")
   sling_entity_link(sling_input_corpus, sling_output_corpus)
@@ -240,8 +243,11 @@ def main(_):
   for mode in ["train"]:
     # Parse all shards in each mode
     # Currently sequentially, can be parallelized later
-    for task_id in range(12, max_tasks[mode]):
+    for task_id in range(21, max_tasks[mode]):
       for shard_id in range(0, max_shards[mode]):
+        if task_id == 21 and shard_id in [0,1]:
+          print("Skipping completed task")
+          continue
         nq_augmented_data = get_examples(ARGS.nq_dir, mode, task_id, shard_id)
         if nq_augmented_data is None:
           continue

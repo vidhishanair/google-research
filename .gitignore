@@ -18,3 +18,12 @@ dist/
 
 # Other
 *.DS_Store
+
+# Logs
+*.log
+
+# Generated Files
+fat/fat/fat_bert_nq/generated_files/
+fat/fat/fat_bert_nq/files/
+fat/entity_linking/files/
+fat/log/
