@@ -265,12 +265,16 @@ class CsrData(object):
       op4.close()
     return obj
 
-  def load_csr_data(self, full_wiki, files_dir):
+  def load_csr_data(self, full_wiki, files_dir, mode=None, task_id=None, shard_id=None):
     """Load saved KB data in CSR format."""
     if files_dir == 'None':
       return
+    if mode is not None and task_id is not None and shard_id is not None:
+      shard_level = True
+    else:
+      shard_level = False
     tf.logging.info("""Load saved KB files.""")
-    file_paths = self.get_file_names(full_wiki, files_dir)
+    file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id)
     tf.logging.info('KB Related filenames: %s'%(file_paths))
     print(file_paths)
     tf.logging.info('Loading adj_mat')

@@ -44,7 +44,7 @@ flags.DEFINE_bool(
 class ApproximatePageRank(object):
   """APR main lib which is used to wrap functions around ppr algo."""
 
-  def __init__(self):
+  def __init__(self, mode=None, task_id=None, shard_id=None):
     self.data = CsrData()
     self.data.load_csr_data(
         full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir)

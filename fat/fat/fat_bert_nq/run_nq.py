@@ -588,7 +588,9 @@ def read_nq_entry(entry, is_training):
 def convert_examples_to_features(examples, tokenizer, is_training, output_fn):
   """Converts a list of NqExamples into InputFeatures."""
   num_spans_to_ids = collections.defaultdict(list)
-  apr_obj = ApproximatePageRank()
+  mode = 'train' if is_training else 'dev'
+  apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
+                                shard_id=FLAGS.shard_split_id)
 
   for example in examples:
     example_index = example.example_id
@@ -928,7 +930,9 @@ class CreateTFExampleFn(object):
     self.is_training = is_training
     self.tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
-    self.apr_obj = ApproximatePageRank()
+    mode = 'train' if is_training else 'dev'
+    self.apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
+                                       shard_id=FLAGS.shard_split_id)
 
   def process(self, example):
     """Coverts an NQ example in a list of serialized tf examples."""
