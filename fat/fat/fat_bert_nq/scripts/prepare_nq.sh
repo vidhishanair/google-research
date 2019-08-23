@@ -11,8 +11,8 @@ mkdir -p $OUTPUT
 mkdir -p $OUTPUT/train
 mkdir -p $OUTPUT/dev
 
-#for i in {0..9}
-for i in 0
+for i in {2..19}
+#for i in 0
 do
  echo  $i
  nohup python3 -m fat.fat_bert_nq.prepare_nq_data \
@@ -29,5 +29,8 @@ do
       --do_lower_case=True \
       --merge_eval=False \
       --max_context=512 \
-      --include_unknown=0.02 > log/00$i.log 2>&1 &
+      --include_unknown=0.02 > log/$i00.log 2>&1 &
 done
+
+wait
+echo "All Done"

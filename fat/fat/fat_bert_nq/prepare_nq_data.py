@@ -128,7 +128,7 @@ def main(_):
                                                     FLAGS.split, FLAGS.task_id,
                                                     FLAGS.shard_split_id,
                                                     "jsonl.gz")
-    tf.logging.info("Reading file %s", input_file)
+    print("Reading file %s", input_file)
     tokenizer = tokenization.FullTokenizer(
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
     eval_examples = run_nq.read_nq_examples(
@@ -145,8 +145,8 @@ def main(_):
       eval_features.append(feature)
       eval_writer.process_feature(feature)
       examples_processed = len(eval_features)
-      if examples_processed % 100 == 0:
-        tf.logging.info("Examples processed: %d", examples_processed)
+      if examples_processed % 10 == 0:
+          print("Examples processed: %d", examples_processed)
 
     _ = run_nq.convert_examples_to_features(
         examples=eval_examples,
@@ -164,7 +164,7 @@ def main(_):
                                                         FLAGS.split, task,
                                                         shard_split,
                                                         "tf-record")
-        tf.logging.info("Reading file %s", input_file)
+        print("Reading file %s", input_file)
         instances.extend([
             tf.train.Example.FromString(r)
             for r in tf.python_io.tf_record_iterator(input_file)
