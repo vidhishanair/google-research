@@ -152,7 +152,7 @@ class CsrData(object):
         subj = x.id
         properties = sling_utils.get_properties(x, kb)
         for (rel, obj) in properties:
-          if sub_entities is not None and (subj not in sub_entities and obj not in sub_entities):
+          if sub_entities is not None and (subj not in sub_entities or obj not in sub_entities):
             continue
 
           if subj not in ent2id:
@@ -203,6 +203,7 @@ class CsrData(object):
     for subj, relations in tmp_rdict.items():
       for obj, rel in relations.items():
         rel_dict[(subj, obj)] = rel
+    del tmp_rdict
 
     print('Building Sparse Matrix')
     if decompose_ppv:  # Relation Level Sparse Matrices to weight accordingly
