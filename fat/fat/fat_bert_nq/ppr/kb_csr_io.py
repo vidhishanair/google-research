@@ -128,14 +128,17 @@ class CsrData(object):
     entity_names = dict()
     entity_names['e'] = dict()
     entity_names['r'] = dict()
-    if shard_level:
-      num_entities = sling_utils.get_num_entities(kb, full_wiki, sub_entities)
-    else:
-      num_entities = FLAGS.total_kb_entities
-    print("Num entities: %d", num_entities)
+
+    sub_entities = {k:1 for k in sub_entities}
+    # if shard_level:
+    #   num_entities = sling_utils.get_num_entities(kb, full_wiki, sub_entities)
+    # else:
+    #   num_entities = FLAGS.total_kb_entities
+    # print("Num entities: %d", num_entities)
 
     # Using pre-calculated entity count - since we need pre-created matrix
-    rel_dict = sparse.dok_matrix((num_entities, num_entities), dtype=np.int16)
+    #rel_dict = sparse.dok_matrix((num_entities, num_entities), dtype=np.int16)
+    tmp_rdict = {}
     relation_map = {}
     all_row_ones, all_col_ones = [], []
     count = 0
@@ -169,7 +172,10 @@ class CsrData(object):
           entity_names['r'][rel_id] = dict()
           entity_names['r'][rel_id]['name'] = str(kb[rel]['name'])
 
-          rel_dict[(subj_id, obj_id)] = rel_id
+          # rel_dict[(subj_id, obj_id)] = rel_id
+          if subj_id not in tmp_rdict:
+            tmp_rdict[subj_id] = {}
+          tmp_rdict[subj_id][obj_id] = rel_id
 
           if rel_id not in relation_map:
             relation_map[rel_id] = [[], []]
@@ -189,8 +195,15 @@ class CsrData(object):
 
     id2ent = {idx: ent for ent, idx in ent2id.items()}
     loaded_num_entities = len(id2ent)
+    num_entities = loaded_num_entities
     #assert loaded_num_entities == num_entities  # Sanity check for processing
     print('%d entities loaded' % loaded_num_entities)
+    print("Building rel dict")
+    rel_dict = sparse.dok_matrix((num_entities, num_entities), dtype=np.int16)
+    for subj, relations in tmp_rdict.items():
+      for obj, rel in relations.items():
+        rel_dict[(subj, obj)] = rel
+
     print('Building Sparse Matrix')
     if decompose_ppv:  # Relation Level Sparse Matrices to weight accordingly
       for rel in relation_map:

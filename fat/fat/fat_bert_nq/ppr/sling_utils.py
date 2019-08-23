@@ -73,18 +73,18 @@ def get_properties(item, kb):  # pylint: disable=unused-argument
       props.append((rel, obj))
   return props
 
-def get_num_entities(kb, full_wiki, sub_entities):
-  count = 0
-  num_entities = 0
-  for x in kb:
-    count +=1
-    if not full_wiki and count == 100000:
-      break  # For small KB Creation
-    if is_subj(x, kb):
-      subj = x.id
-      properties = get_properties(x, kb)
-      for (rel, obj) in properties:
-        if sub_entities is not None and (subj not in sub_entities and obj not in sub_entities):
-          continue
-        num_entities += 1
-  return num_entities
+# def get_num_entities(kb, full_wiki, sub_entities):
+#   count = 0
+#   num_entities = 0
+#   for x in kb:
+#     count +=1
+#     if not full_wiki and count == 100000:
+#       break  # For small KB Creation
+#     if is_subj(x, kb):
+#       subj = x.id
+#       properties = get_properties(x, kb)
+#       for (rel, obj) in properties:
+#         if sub_entities is not None and (subj not in sub_entities and obj not in sub_entities):
+#           continue
+#         num_entities += 1
+#   return num_entities
