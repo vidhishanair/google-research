@@ -103,7 +103,7 @@ if __name__ == '__main__':
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 6, "dev": 16}
     apr = ApproximatePageRank()
-    for mode in ["train"]:
+    for mode in ["dev"]:
         # Parse all shards in each mode
         # Currently sequentially, can be parallelized later
         for task_id in range(0, max_tasks[mode]):
@@ -113,11 +113,10 @@ if __name__ == '__main__':
                 if nq_data is None:
                     continue
                 print("Size of all entities: %d", len(entities))
-                two_hop_entities = apr.get_khop_entities(entities, 3)
-                print("Size of three hop entities: %d", len(two_hop_entities))
+                two_hop_entities = apr.get_khop_entities(entities, 2)
+                print("Size of two hop entities: %d", len(two_hop_entities))
                 csr_data = CsrData()
                 csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
                                                   decompose_ppv=FLAGS.decompose_ppv,
                                                   files_dir=FLAGS.apr_files_dir,sub_entities=two_hop_entities, mode=mode, task_id=task_id, shard_id=shard_id)
-                exit()
 
