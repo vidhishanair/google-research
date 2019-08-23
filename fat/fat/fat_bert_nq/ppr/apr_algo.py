@@ -61,6 +61,32 @@ def csr_personalized_pagerank(seeds, adj_mat, alpha, max_iter=20):
   return np.squeeze(s_ovr)
 
 
+def csr_get_k_hop_entities(seeds, adj_mat, k_hop):
+  """Return entities within k hop distance.
+
+  Args:
+    seeds: A list of seed entity ids
+    adj_mat: A sparse matrix of size E x E whose rows sum to one.
+    k_hop: No: of hops to extract entities from
+
+  Returns:
+      facts: A list of entities within k hop distance
+  """
+  k_hop_entities = seeds
+  for i in range(k_hop):
+    # Slicing adjacency matrix to subgraph of all extracted entities
+    submat = adj_mat[:, seeds]
+
+    # Extracting non-zero entity pairs
+    row, col = submat.nonzero()
+    objects = []
+    for ii in range(row.shape[0]):
+      obj_id = row[ii]
+      objects.append(obj_id)
+    seeds = objects
+    k_hop_entities.extend(objects)
+  return k_hop_entities
+
 def get_fact_score(extracted_scores,
                    subj,
                    obj,

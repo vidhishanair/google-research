@@ -29,6 +29,7 @@ import numpy as np
 import tensorflow as tf
 from fat.fat_bert_nq.ppr.apr_algo import csr_personalized_pagerank
 from fat.fat_bert_nq.ppr.apr_algo import csr_topk_fact_extractor
+from fat.fat_bert_nq.ppr.apr_algo import csr_get_k_hop_entities
 from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
 
 flags = tf.flags
@@ -47,6 +48,16 @@ class ApproximatePageRank(object):
     self.data = CsrData()
     self.data.load_csr_data(
         full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir)
+
+  def get_khop_entities(self, seeds, k_hop):
+    entity_ids = [
+      int(self.data.ent2id[x]) for x in seeds if x in self.data.ent2id
+    ]
+    khop_entity_ids = csr_get_k_hop_entities(entity_ids, self.data.adj_mat_t_csr, k_hop)
+    khop_entities = [
+        int(self.data.id2ent[x]) for x in khop_entity_ids if x in self.data.id2ent
+    ]
+    return khop_entities
 
   def get_topk_extracted_ent(self, seeds, alpha, topk):
     """Extract topk entities given seeds.

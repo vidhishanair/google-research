@@ -238,12 +238,12 @@ def get_examples(data_dir, mode, task_id, shard_id):
 
 def main(_):
   workflow.startup()
-  max_tasks = {"train": 25, "dev": 5}
+  max_tasks = {"train": 50, "dev": 5}
   max_shards = {"train": 6, "dev": 16}
   for mode in ["train"]:
     # Parse all shards in each mode
     # Currently sequentially, can be parallelized later
-    for task_id in range(21, max_tasks[mode]):
+    for task_id in range(0, max_tasks[mode]):
       for shard_id in range(0, max_shards[mode]):
         if task_id == 21 and shard_id in [0,1]:
           print("Skipping completed task")

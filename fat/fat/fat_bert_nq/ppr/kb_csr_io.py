@@ -54,31 +54,44 @@ class CsrData(object):
     self.ent2id = None  # Python dictionary mapping entities to integer ids.
     self.entity_names = None  # dict mapping entity ids to entity surface forms
 
-  def get_file_names(self, full_wiki, files_dir):
+  def get_file_names(self, full_wiki, files_dir, shard_level=False, mode=None, task_id=None, shard_id=None):
     """Return filenames depending on full KB or subset of KB."""
-    sub_file_names = {
-        'ent2id_fname': 'csr_ent2id_sub.json.gz',
-        'id2ent_fname': 'csr_id2ent_sub.json.gz',
-        'rel2id_fname': 'csr_rel2id_sub.json.gz',
-        'rel_dict_fname': 'csr_rel_dict_sub.npz',
-        'kb_fname': 'kb.sling',
-        'entity_names_fname': 'csr_entity_names_sub.json.gz',
-        'adj_mat_fname': 'csr_adj_mat_sparse_matrix_sub.npz'
-    }
-    full_file_names = {
+    if shard_level:
+      file_names = {
         'ent2id_fname': 'csr_ent2id_full.json.gz',
         'id2ent_fname': 'csr_id2ent_full.json.gz',
         'rel2id_fname': 'csr_rel2id_full.json.gz',
         'rel_dict_fname': 'csr_rel_dict_full.npz',
-        'kb_fname': 'kb.sling',
         'entity_names_fname': 'csr_entity_names_full.json.gz',
         'adj_mat_fname': 'csr_adj_mat_sparse_matrix_full.npz',
-    }
-    files = full_file_names if full_wiki else sub_file_names
-    file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
+      }
+      sharded_fnames = {k: '%02d%02d_'%(task_id, shard_id) + v for k, v in file_names.items()}
+      file_paths = {k: os.path.join(files_dir+"%s/"%(mode), v) for k, v in sharded_fnames.items()}
+      file_paths['kb_fname'] =  os.path.join(files_dir, 'kb.sling')
+    else:
+      sub_file_names = {
+          'ent2id_fname': 'csr_ent2id_sub.json.gz',
+          'id2ent_fname': 'csr_id2ent_sub.json.gz',
+          'rel2id_fname': 'csr_rel2id_sub.json.gz',
+          'rel_dict_fname': 'csr_rel_dict_sub.npz',
+          'kb_fname': 'kb.sling',
+          'entity_names_fname': 'csr_entity_names_sub.json.gz',
+          'adj_mat_fname': 'csr_adj_mat_sparse_matrix_sub.npz'
+      }
+      full_file_names = {
+          'ent2id_fname': 'csr_ent2id_full.json.gz',
+          'id2ent_fname': 'csr_id2ent_full.json.gz',
+          'rel2id_fname': 'csr_rel2id_full.json.gz',
+          'rel_dict_fname': 'csr_rel_dict_full.npz',
+          'kb_fname': 'kb.sling',
+          'entity_names_fname': 'csr_entity_names_full.json.gz',
+          'adj_mat_fname': 'csr_adj_mat_sparse_matrix_full.npz',
+      }
+      files = full_file_names if full_wiki else sub_file_names
+      file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
     return file_paths
 
-  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir):
+  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None):
     """Return the PPR vector for the given seed and adjacency matrix.
 
       Algorithm : Parses sling KB - extracts subj, obj, rel triple and stores
@@ -93,11 +106,16 @@ class CsrData(object):
       decompose_ppv : boolean True which
                   Creates Relation level SP Matrices and then combines them
       files_dir : Directory to save KB data in
+      sub_entities : entities to keep for building sharded graph
 
     Returns:
       None
     """
-    file_paths = self.get_file_names(full_wiki, files_dir)
+    if sub_entities is not None and mode is not None and task_id is not None and shard_id is not None:
+      shard_level = True
+    else:
+      shard_level = False
+    file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id)
     tf.logging.info('KB Related filenames: %s'%(file_paths))
 
     tf.logging.info('Loading KB')
@@ -110,8 +128,13 @@ class CsrData(object):
     entity_names = dict()
     entity_names['e'] = dict()
     entity_names['r'] = dict()
-    num_entities = FLAGS.total_kb_entities
-    # Using pre-computed entity count - since we need pre-created matrix
+    if shard_level:
+      num_entities = sling_utils.get_num_entities(kb, full_wiki, sub_entities)
+    else:
+      num_entities = FLAGS.total_kb_entities
+    print("Num entities: %d", num_entities)
+
+    # Using pre-calculated entity count - since we need pre-created matrix
     rel_dict = sparse.dok_matrix((num_entities, num_entities), dtype=np.int16)
     relation_map = {}
     all_row_ones, all_col_ones = [], []
@@ -126,6 +149,8 @@ class CsrData(object):
         subj = x.id
         properties = sling_utils.get_properties(x, kb)
         for (rel, obj) in properties:
+          if sub_entities is not None and (subj not in sub_entities and obj not in sub_entities):
+            continue
 
           if subj not in ent2id:
             ent2id[subj] = len(ent2id)
@@ -244,6 +269,9 @@ class CsrData(object):
 
     tf.logging.info('Loading ent2id')
     self.ent2id = self.load_json_gz(file_paths['ent2id_fname'])
+
+    tf.logging.info('Loading ent2id')
+    self.id2ent = self.load_json_gz(file_paths['id2ent_fname'])
 
     # Performing this once instead of for every iteration
     self.adj_mat_t_csr = self.adj_mat.transpose().tocsr()
