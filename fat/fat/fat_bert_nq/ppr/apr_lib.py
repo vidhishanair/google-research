@@ -47,7 +47,8 @@ class ApproximatePageRank(object):
   def __init__(self, mode=None, task_id=None, shard_id=None):
     self.data = CsrData()
     self.data.load_csr_data(
-        full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir)
+        full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir,
+        mode=mode, task_id=task_id, shard_id=shard_id)
 
   def get_khop_entities(self, seeds, k_hop):
     print("id2ent size: %d", len(self.data.id2ent))
@@ -71,8 +72,10 @@ class ApproximatePageRank(object):
       extracted_ents: list of selected entities
       extracted_scores: list of scores of selected entities
     """
+    #tf.logging.info('Start ppr')
     ppr_scores = csr_personalized_pagerank(seeds, self.data.adj_mat_t_csr,
                                            alpha)
+    #tf.logging.info('End ppr')
     sorted_idx = np.argsort(ppr_scores)[::-1]
     extracted_ents = sorted_idx[:topk]
     extracted_scores = ppr_scores[sorted_idx[:topk]]

@@ -21,6 +21,7 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
+import time
 
 flags = tf.flags
 FLAGS = flags.FLAGS
@@ -52,7 +53,9 @@ def csr_personalized_pagerank(seeds, adj_mat, alpha, max_iter=20):
   for _ in range(max_iter):
     if FLAGS.verbose_logging:
       tf.logging.info('Performing PPR Matrix Multiplication')
+    st = time.time()
     r_new = (1. - restart_prob) * (adj_mat.dot(r))
+    #print('Time taken for dot product: '+str(time.time() - st))
     s_ovr = s_ovr + r_new
     delta = abs(r_new.sum())
     if delta < 1e-5:
