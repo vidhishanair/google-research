@@ -72,7 +72,7 @@ def get_inp_data(record_iterator):
 vocab_path = '/remote/bones/user/vbalacha/bert-joint-baseline/vocab-nq.txt'
 tokenizer = tokenization.FullTokenizer(vocab_file=vocab_path, do_lower_case=True)
 
-old_file_path = './data_mc512_unk0.02_test/train/nq-train-0000.tf-record'
+old_file_path = '/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/data_mc512_unk0.02_test/train/nq-train-0000.tf-record'
 record_iterator = tf.python_io.tf_record_iterator(path=old_file_path)
 old_data = get_inp_data(record_iterator)
 with open('old_data.txt', 'w') as fp:
@@ -81,7 +81,7 @@ with open('old_data.txt', 'w') as fp:
         fp.write('Passage: \n'+" ".join(p)+"\n")
         fp.write('Facts: \n'+" ".join(f)+"\n\n")
 
-new_file_path = './sharded_kb_data_mc512_unk0.02_test/train/nq-train-0000.tf-record'
+new_file_path = '/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_mc512_unk0.02_test/train/nq-train-0000.tf-record'
 record_iterator = tf.python_io.tf_record_iterator(path=new_file_path)
 new_data = get_inp_data(record_iterator)
 with open('new_data.txt', 'w') as fp:
