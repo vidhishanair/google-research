@@ -37,7 +37,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
-flags.DEFINE_bool('full_wiki', False, '')
+flags.DEFINE_bool('full_wiki', True, '')
 flags.DEFINE_bool('decompose_ppv', False, '')
 flags.DEFINE_integer('total_kb_entities', 188309,
                      'Total entities in processed sling KB')
@@ -258,7 +258,7 @@ class CsrData(object):
     tf.logging.info("""Load saved KB files.""")
     file_paths = self.get_file_names(full_wiki, files_dir)
     tf.logging.info('KB Related filenames: %s'%(file_paths))
-
+    print(file_paths)
     tf.logging.info('Loading adj_mat')
     self.adj_mat = self.safe_load_npz(file_paths['adj_mat_fname'])
     tf.logging.info('Loading rel_dict')
@@ -270,7 +270,7 @@ class CsrData(object):
     tf.logging.info('Loading ent2id')
     self.ent2id = self.load_json_gz(file_paths['ent2id_fname'])
 
-    tf.logging.info('Loading ent2id')
+    tf.logging.info('Loading id2ent')
     self.id2ent = self.load_json_gz(file_paths['id2ent_fname'])
 
     # Performing this once instead of for every iteration

@@ -40,12 +40,12 @@ from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
 flags = tf.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('nq_dir', 'None', 'Read nq data to extract entities')
-flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
-flags.DEFINE_bool('full_wiki', True, '')
-flags.DEFINE_bool('decompose_ppv', False, '')
-flags.DEFINE_integer('total_kb_entities', 29964483,
-                     'Total entities in processed sling KB')
+flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq/', 'Read nq data to extract entities')
+#flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
+#flags.DEFINE_bool('full_wiki', True, '')
+#flags.DEFINE_bool('decompose_ppv', False, '')
+#flags.DEFINE_integer('total_kb_entities', 29964483,
+#                     'Total entities in processed sling KB')
 #188309 for sub graphs
 #29964483 for full graphs
 
@@ -60,14 +60,18 @@ def extract_nq_data(nq_file):
     for line in lines:
         item = json.loads(line.decode("utf-8"))
         data[str(counter)] = item
-        entities.extend([ ent for k, v in item['question_entity_map'] for (id, ent) in v ])
+        if 'question_entity_map' in item.keys():
+            entities.extend([ ent for k, v in item['question_entity_map'].items() for (ids, ent) in v ])
         for ann in item["annotations"]:
-            entities.extend([ ent for k, v in ann["long_answer"]["entity_map"] for (id, ent) in v ])
+            if 'entity_map' in ann['long_answer'].keys():
+                entities.extend([ ent for k, v in ann["long_answer"]["entity_map"].items() for (ids, ent) in v ])
         for cand in item["long_answer_candidates"]:
-            entities.extend([ ent for k, v in cand["entity_map"] for (id, ent) in v ])
+            if 'entity_map' in cand.keys():
+                entities.extend([ ent for k, v in cand["entity_map"].items() for (ids, ent) in v ])
         for ann in item["annotations"]:
             for sa in ann['short_answers']:
-                entities.extend([ ent for k, v in sa["entity_map"] for (id, ent) in v ])
+                if 'entity_map' in sa.keys():
+                    entities.extend([ ent for k, v in sa["entity_map"].items() for (ids, ent) in v ])
         counter += 1
     return data, list(set(entities))
 
@@ -84,9 +88,10 @@ def extract_nq_data(nq_file):
 def get_examples(data_dir, mode, task_id, shard_id):
     """Reads NQ data, does sling entity linking and returns augmented data."""
     file_path = nq_data_utils.get_sharded_filename(data_dir, mode, task_id, shard_id, 'jsonl.gz')
+    #print(file_path)
     tf.logging.info("Reading file: %s" % (file_path))
     if not os.path.exists(file_path):
-        return None
+        return None, None
     nq_data, entities = extract_nq_data(file_path)
     tf.logging.info("NQ data Size: " + str(len(nq_data.keys())))
     return nq_data, entities
@@ -103,14 +108,16 @@ if __name__ == '__main__':
         # Currently sequentially, can be parallelized later
         for task_id in range(0, max_tasks[mode]):
             for shard_id in range(0, max_shards[mode]):
+                print(FLAGS.nq_dir)
                 nq_data, entities = get_examples(FLAGS.nq_dir, mode, task_id, shard_id)
                 if nq_data is None:
                     continue
+                print("Size of all entities: %d", len(entities))
                 two_hop_entities = apr.get_khop_entities(entities, 3)
-                print("Size of two hop entities: %d", two_hop_entities)
+                print("Size of three hop entities: %d", len(two_hop_entities))
                 csr_data = CsrData()
                 csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
                                                   decompose_ppv=FLAGS.decompose_ppv,
                                                   files_dir=FLAGS.apr_files_dir,sub_entities=two_hop_entities, mode=mode, task_id=task_id, shard_id=shard_id)
-
+                exit()
 

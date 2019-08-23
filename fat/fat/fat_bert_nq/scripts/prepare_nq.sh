@@ -11,7 +11,7 @@ mkdir -p $OUTPUT
 mkdir -p $OUTPUT/train
 mkdir -p $OUTPUT/dev
 
-for i in {31..40}
+for i in {40..49}
 do
  echo  $i
  nohup python3 -m fat.fat_bert_nq.prepare_nq_data \
@@ -19,7 +19,7 @@ do
       --verbose_logging=False \
       --split=train \
       --task_id=$i \
-      --shard_split_id=2 \
+      --shard_split_id=4 \
       --input_data_dir=/remote/bones/user/vbalacha/datasets/ent_linked_nq/ \
       --output_data_dir=$OUTPUT \
       --apr_files_dir=$APR_DIR \
@@ -28,5 +28,5 @@ do
       --do_lower_case=True \
       --merge_eval=False \
       --max_context=512 \
-      --include_unknown=0.02 > log/02$i.log 2>&1 &
+      --include_unknown=0.02 > log/04$i.log 2>&1 &
 done

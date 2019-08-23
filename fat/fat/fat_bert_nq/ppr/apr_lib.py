@@ -50,12 +50,13 @@ class ApproximatePageRank(object):
         full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir)
 
   def get_khop_entities(self, seeds, k_hop):
+    print("id2ent size: %d", len(self.data.id2ent))
     entity_ids = [
       int(self.data.ent2id[x]) for x in seeds if x in self.data.ent2id
     ]
     khop_entity_ids = csr_get_k_hop_entities(entity_ids, self.data.adj_mat_t_csr, k_hop)
     khop_entities = [
-        int(self.data.id2ent[x]) for x in khop_entity_ids if x in self.data.id2ent
+        self.data.id2ent[str(x)] for x in khop_entity_ids if str(x) in self.data.id2ent.keys()
     ]
     return khop_entities
 

@@ -75,6 +75,7 @@ def csr_get_k_hop_entities(seeds, adj_mat, k_hop):
   k_hop_entities = seeds
   for i in range(k_hop):
     # Slicing adjacency matrix to subgraph of all extracted entities
+    #print(seeds)
     submat = adj_mat[:, seeds]
 
     # Extracting non-zero entity pairs
@@ -83,8 +84,11 @@ def csr_get_k_hop_entities(seeds, adj_mat, k_hop):
     for ii in range(row.shape[0]):
       obj_id = row[ii]
       objects.append(obj_id)
+    objects = list(set(objects))
     seeds = objects
     k_hop_entities.extend(objects)
+  print(len(k_hop_entities))
+  print(k_hop_entities[0:100])
   return k_hop_entities
 
 def get_fact_score(extracted_scores,
