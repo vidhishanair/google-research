@@ -87,8 +87,6 @@ def csr_get_k_hop_entities(seeds, adj_mat, k_hop):
     objects = list(set(objects))
     seeds = objects
     k_hop_entities.extend(objects)
-  print(len(k_hop_entities))
-  print(k_hop_entities[0:100])
   return k_hop_entities
 
 def get_fact_score(extracted_scores,
