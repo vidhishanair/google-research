@@ -21,14 +21,13 @@ def get_inp_data(record_iterator):
     d = []
     for string_record in record_iterator:
         counter += 1
-        if counter == 100:
+        if counter == 1000:
             break
         example = tf.train.Example()
         example.ParseFromString(string_record)
         input_ids = list(example.features.feature['input_ids'].int64_list.value)
         input_ids = map(int, input_ids)
 
-        print(len(tokenizer.vocab))
         words = []
         c=0
         f=False
@@ -82,10 +81,10 @@ with open('old_data.txt', 'w') as fp:
         fp.write('Facts: \n'+" ".join(f)+"\n\n")
 
 new_file_path = '/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_mc512_unk0.02_test/train/nq-train-0000.tf-record'
-record_iterator = tf.python_io.tf_record_iterator(path=new_file_path)
-new_data = get_inp_data(record_iterator)
+record_iterator2 = tf.python_io.tf_record_iterator(path=new_file_path)
+new_data = get_inp_data(record_iterator2)
 with open('new_data.txt', 'w') as fp:
-    for (q, p, f) in old_data:
+    for (q, p, f) in new_data:
         fp.write('Question: \n'+" ".join(q)+"\n")
         fp.write('Passage: \n'+" ".join(p)+"\n")
         fp.write('Facts: \n'+" ".join(f)+"\n\n")
