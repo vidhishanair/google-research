@@ -117,7 +117,7 @@ class CsrData(object):
       shard_level = False
     file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id)
     tf.logging.info('KB Related filenames: %s'%(file_paths))
-
+    print(file_paths)
     tf.logging.info('Loading KB')
     kb = sling_utils.get_kb(file_paths['kb_fname'])
 
