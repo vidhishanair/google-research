@@ -96,7 +96,7 @@ def main(_):
                                                     FLAGS.split, FLAGS.task_id,
                                                     FLAGS.shard_split_id,
                                                     "jsonl.gz")
-    tf.logging.info("Reading file %s", input_file)
+    print("Reading file %s", input_file)
     for example in nq_data_utils.get_nq_examples(input_file):
       for instance in creator_fn.process(example):
         instances.append(instance)
@@ -104,15 +104,15 @@ def main(_):
       if example["has_correct_context"]:
         num_examples_with_correct_context += 1
       if examples_processed % 100 == 0:
-        tf.logging.info("Examples processed: %d", examples_processed)
-        tf.logging.info("Instances processed: %d", instances_processed)
+        print("Examples processed: %d", examples_processed)
+        print("Instances processed: %d", instances_processed)
       examples_processed += 1
       if FLAGS.max_examples > 0 and examples_processed >= FLAGS.max_examples:
         break
-    tf.logging.info("Examples with correct context retained: %d of %d",
+    print("Examples with correct context retained: %d of %d",
                     num_examples_with_correct_context, examples_processed)
     random.shuffle(instances)
-    tf.logging.info("Total no: of instances in current shard: %d",
+    print("Total no: of instances in current shard: %d",
                     len(instances))
     output_file = nq_data_utils.get_sharded_filename(FLAGS.output_data_dir,
                                                      FLAGS.split, FLAGS.task_id,
