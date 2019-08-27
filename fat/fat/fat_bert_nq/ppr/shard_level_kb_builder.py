@@ -88,7 +88,7 @@ def extract_nq_data(nq_file):
 def get_examples(data_dir, mode, task_id, shard_id):
     """Reads NQ data, does sling entity linking and returns augmented data."""
     file_path = nq_data_utils.get_sharded_filename(data_dir, mode, task_id, shard_id, 'jsonl.gz')
-    #print(file_path)
+    print(file_path)
     tf.logging.info("Reading file: %s" % (file_path))
     if not os.path.exists(file_path):
         return None, None
@@ -101,14 +101,13 @@ if __name__ == '__main__':
     print(FLAGS.decompose_ppv)
     print(FLAGS.apr_files_dir)
     max_tasks = {"train": 50, "dev": 5}
-    max_shards = {"train": 6, "dev": 16}
+    max_shards = {"train": 7, "dev": 17}
     apr = ApproximatePageRank()
-    for mode in ["dev"]:
+    for mode in ["train"]:
         # Parse all shards in each mode
         # Currently sequentially, can be parallelized later
         for task_id in range(0, max_tasks[mode]):
-            for shard_id in range(0, max_shards[mode]):
-                print(FLAGS.nq_dir)
+            for shard_id in range(6, max_shards[mode]):
                 nq_data, entities = get_examples(FLAGS.nq_dir, mode, task_id, shard_id)
                 if nq_data is None:
                     continue

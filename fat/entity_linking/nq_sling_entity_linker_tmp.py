@@ -41,7 +41,7 @@ args = tf.flags
 ARGS = args.FLAGS
 args.DEFINE_string("nq_dir", "/remote/bones/user/vbalacha/datasets/sharded_nq/", "NQ data location")
 args.DEFINE_string("files_dir", "./files/", "Preprocess files location")
-args.DEFINE_string("output_data_dir", "/remote/bones/user/vbalacha/datasets/ent_linked_nq/", "Location to write augmented data to")
+args.DEFINE_string("output_data_dir", "/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/", "Location to write augmented data to")
 args.DEFINE_boolean("annotate_candidates", True, "Flag to annotate candidates")
 args.DEFINE_boolean("annotate_long_answers", True,
                     "Flag to annotate long answer")
@@ -105,7 +105,7 @@ def prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id):
           continue
         for sid in range(len(short_ans)):
           ans = short_ans[sid]
-          answer, answer_map, doc = extract_and_tokenize_text(ans, tokens, True)
+          answer, answer_map, doc = extract_and_tokenize_text(ans, tokens, False)
           if answer:
             nq_data[i]["annotations"][idx]["short_answers"][sid][
                 "text_answer"] = answer
@@ -116,7 +116,7 @@ def prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id):
     if ARGS.annotate_long_answers:
       for idx, ann in enumerate(nq_data[i]["annotations"]):
         long_ans = ann["long_answer"]
-        answer, answer_map, doc = extract_and_tokenize_text(long_ans, tokens, True)
+        answer, answer_map, doc = extract_and_tokenize_text(long_ans, tokens, False)
         if answer:
           nq_data[i]["annotations"][idx]["long_answer"]["text_answer"] = answer
           nq_data[i]["annotations"][idx]["long_answer"][
@@ -186,7 +186,7 @@ def extract_entity_mentions(nq_data, labelled_record):
           ans_id)]["entity_map"] = entity_map
     else:
       nq_data[index]["long_answer_candidates"][int(
-          idx)]["entity_map"] = entity_map
+           idx)]["entity_map"] = entity_map
   return nq_data
 
 
@@ -225,8 +225,8 @@ def get_examples(data_dir, mode, task_id, shard_id):
   tf.logging.info("NQ data Size: " + str(len(nq_data.keys())))
 
   tf.logging.info("Preparing sling corpus: ")
-  sling_input_corpus = os.path.join(ARGS.files_dir, "sling_input_corpus_tmp5.rec")
-  sling_output_corpus = os.path.join(ARGS.files_dir, "nq_labelled_output_tmp5.rec")
+  sling_input_corpus = os.path.join(ARGS.files_dir, "sling_input_corpus_tmp_train0.rec")
+  sling_output_corpus = os.path.join(ARGS.files_dir, "nq_labelled_output_tmp_train0.rec")
   prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id)
 
   tf.logging.info("Performing Sling NER Labeling")
@@ -238,16 +238,13 @@ def get_examples(data_dir, mode, task_id, shard_id):
 
 def main(_):
   workflow.startup()
-  max_tasks = {"train": 50, "dev": 5}
-  max_shards = {"train": 6, "dev": 16}
+  max_tasks = {"old_train": 50, "train": 25, "dev": 5}
+  max_shards = {"train": 7, "dev": 17}
   for mode in ["train"]:
     # Parse all shards in each mode
     # Currently sequentially, can be parallelized later
     for task_id in range(0, max_tasks[mode]):
       for shard_id in range(0, max_shards[mode]):
-        if task_id == 21 and shard_id in [0,1]:
-          print("Skipping completed task")
-          continue
         nq_augmented_data = get_examples(ARGS.nq_dir, mode, task_id, shard_id)
         if nq_augmented_data is None:
           continue
