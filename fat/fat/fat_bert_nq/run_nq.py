@@ -1334,7 +1334,7 @@ def read_candidates_from_one_split(input_path):
   with gzip.GzipFile(fileobj=tf.gfile.Open(input_path, "rb")) as input_file:
     tf.logging.info("Reading examples from: %s", input_path)
     for line in input_file:
-      e = json.loads(line)
+      e = json.loads(line.decode('utf-8'))
       candidates_dict[e["example_id"]] = e["long_answer_candidates"]
   return candidates_dict
 
@@ -1493,13 +1493,13 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results):
   # Join examplew with features and raw results.
   examples = []
   merged = sorted(
-      examples_by_id + raw_results_by_id + features_by_id,
+      examples_by_id + raw_results_by_id, # + features_by_id,
       key=lambda tup: tup[0])
   for idx, datum in merged:
     if isinstance(datum, tuple):
       examples.append(EvalExample(datum[0], datum[1]))
-    elif "token_map" in datum:
-      examples[-1].features[idx] = datum
+    #elif "token_map" in datum:
+    #  examples[-1].features[idx] = datum
     else:
       examples[-1].results[idx] = datum
 
@@ -1618,7 +1618,8 @@ def main(_):
       raise ValueError(
           "--output_prediction_file must be defined in predict mode.")
 
-    eval_filename = os.path.join(FLAGS.eval_data_path, "eval.tf-record")
+    #eval_filename = os.path.join(FLAGS.eval_data_path, "eval.tf-record")
+    eval_filename = FLAGS.eval_data_path
 
     tf.logging.info("***** Running predictions *****")
 
@@ -1650,6 +1651,7 @@ def main(_):
         tf.train.Example.FromString(r)
         for r in tf.python_io.tf_record_iterator(eval_filename)
     ]
+    # eval_features = []
     nq_pred_dict = compute_pred_dict(candidates_dict, eval_features,
                                      [r._asdict() for r in all_results])
     predictions_json = {"predictions": list(nq_pred_dict.values())}
