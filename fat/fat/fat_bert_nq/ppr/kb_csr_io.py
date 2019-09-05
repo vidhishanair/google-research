@@ -230,7 +230,9 @@ class CsrData(object):
           (np.ones((len(all_row_ones),)),
            (np.array(all_row_ones), np.array(all_col_ones))),
           shape=(num_entities, num_entities))
-      adj_mat = normalize(adj_mat, 'l1', axis=1)
+      if num_entities != 0:
+          print("Normalizing")
+          adj_mat = normalize(adj_mat, 'l1', axis=1)
 
     tf.logging.info('Saving all files')
     # FIX for Bad Magic Header bug
