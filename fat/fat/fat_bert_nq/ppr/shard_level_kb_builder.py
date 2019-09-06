@@ -40,7 +40,7 @@ from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
 flags = tf.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq/', 'Read nq data to extract entities')
+flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/', 'Read nq data to extract entities')
 #flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
 #flags.DEFINE_bool('full_wiki', True, '')
 #flags.DEFINE_bool('decompose_ppv', False, '')
@@ -103,11 +103,14 @@ if __name__ == '__main__':
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
     apr = ApproximatePageRank()
-    for mode in ["train"]:
+    for mode in ["dev"]:
         # Parse all shards in each mode
         # Currently sequentially, can be parallelized later
         for task_id in range(0, max_tasks[mode]):
-            for shard_id in range(6, max_shards[mode]):
+            for shard_id in range(0, max_shards[mode]):
+                if task_id == 0 and shard_id in range(0, 16):
+                    print("skipping finished job")
+                    continue
                 nq_data, entities = get_examples(FLAGS.nq_dir, mode, task_id, shard_id)
                 if nq_data is None:
                     continue
