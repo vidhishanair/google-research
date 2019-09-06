@@ -26,7 +26,7 @@ python3 -m fat.fat_bert_nq.run_nq \
     --bert_config_file=$BERT_BASE_DIR/bert_config.json \
     --init_checkpoint=$OUTPUT/model.ckpt-371002 \
     --output_dir=$OUTPUT \
-    --eval_data_path=$DATA/dev/*.tf-record \
+    --eval_data_path=$DATA/dev \
     --train_precomputed_file=$DATA/train/*.tf-record \
     --train_num_precomputed=494670 \
     --predict_file=$NQ_DATA/dev/*.jsonl.gz \

@@ -1504,7 +1504,7 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results):
       examples[-1].results[idx] = datum
 
   # Construct prediction objects.
-  tf.logging.info("Computing predictions...")
+  print("Computing final summaries...")
   summary_dict = {}
   nq_pred_dict = {}
   for e in examples:
@@ -1512,8 +1512,8 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results):
     summary_dict[e.example_id] = summary
     nq_pred_dict[e.example_id] = summary.predicted_label
     if len(nq_pred_dict) % 100 == 0:
-      tf.logging.info("Examples processed: %d", len(nq_pred_dict))
-  tf.logging.info("Done computing predictions.")
+      print("Examples processed: %d", len(nq_pred_dict))
+  print("Done computing predictions.")
 
   return nq_pred_dict
 
@@ -1618,8 +1618,8 @@ def main(_):
       raise ValueError(
           "--output_prediction_file must be defined in predict mode.")
 
-    #eval_filename = os.path.join(FLAGS.eval_data_path, "eval.tf-record")
-    eval_filename = FLAGS.eval_data_path
+    eval_filename = os.path.join(FLAGS.eval_data_path, "eval.tf-record")
+    #eval_filename = FLAGS.eval_data_path
 
     tf.logging.info("***** Running predictions *****")
 
@@ -1652,6 +1652,7 @@ def main(_):
         for r in tf.python_io.tf_record_iterator(eval_filename)
     ]
     # eval_features = []
+    print("Computing predictions")
     nq_pred_dict = compute_pred_dict(candidates_dict, eval_features,
                                      [r._asdict() for r in all_results])
     predictions_json = {"predictions": list(nq_pred_dict.values())}
