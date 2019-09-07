@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #BERT_BASE_DIR="/remote/bones/user/vbalacha/pretrained_bert/uncased_L-12_H-768_A-12"
-BERT_BASE_DIR="gs://cloud-tpu-checkpoints/bert/uncased_L-12_H-768_A-12"
+BERT_BASE_DIR="gs://fat_storage/pretrained_bert/wwm_uncased_L-24_H-1024_A-16"
 #BERT_BASE_DIR=
 #NQ_BASELINE_DIR="/remote/bones/user/vbalacha/bert-joint-baseline"
 NQ_BASELINE_DIR=gs://fat_storage/bert-joint-baseline
@@ -10,21 +10,21 @@ NQ_BASELINE_DIR=gs://fat_storage/bert-joint-baseline
 #SQUAD_DIR="../datasets/zero-shot-relation-extraction/relation_splits/split_both_1/"
 #APR_DIR="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/"
 
-DATA="gs://fat_storage/sharded_kb_data_mc512_unk0.02_test"
+DATA="gs://fat_storage/sharded_new_kb_data_mc512_unk0.02_test"
 NQ_DATA="gs://natural_questions/v1.0"
-LEARNING_RATE=1e-5
+LEARNING_RATE=2e-5
 NUM_EPOCHS=1
 SEED=1
-OUTPUT=gs://fat_storage/test_output
+OUTPUT=gs://fat_storage/sharded_new_kb_data_mc512_unk0.02_test/output_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED
 
-#mkdir -p $OUTPUT
+gsutil mkdir $OUTPUT
 
 python3 -m fat.fat_bert_nq.run_nq \
     --logtostderr \
-    --is_training=False \
+    --is_training=True \
     --verbose_logging=False \
     --bert_config_file=$BERT_BASE_DIR/bert_config.json \
-    --init_checkpoint=$OUTPUT/model.ckpt-371002 \
+    --init_checkpoint=$BERT_BASE_DIR/bert_model.ckpt \
     --output_dir=$OUTPUT \
     --eval_data_path=$DATA/dev \
     --train_precomputed_file=$DATA/train/*.tf-record \
@@ -36,7 +36,7 @@ python3 -m fat.fat_bert_nq.run_nq \
     --doc_stride=128 \
     --max_query_length=64 \
     --train_batch_size=8 \
-    --do_train=False \
+    --do_train=True \
     --do_predict=True \
     --learning_rate=$LEARNING_RATE \
     --num_train_epochs=$NUM_EPOCHS \

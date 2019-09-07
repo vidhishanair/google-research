@@ -1420,17 +1420,21 @@ def compute_predictions(example):
 
   # tf.logging.info("Predictions list len : %d", len(predictions))
   # tf.logging.info("Len of example results: %d", len(example.results.items()))
-  # if len(predictions) == 0:
-  #   summary = ScoreSummary()
-  #   summary.short_span_score = (0)
-  #   summary.cls_token_score = (0)
-  #   summary.answer_type_logits = result["answer_type_logits"]
-  #   start_span = token_map[start_index]
-  #   end_span = token_map[end_index] + 1
-  #   short_span = Span(-1, -1)
-  #   long_span = Span(-1, -1)
-  #   score = 0
-  # else:
+  if len(predictions) == 0:
+    summary = ScoreSummary()
+    summary.short_span_score = (0)
+    summary.cls_token_score = (0)
+    #summary.answer_type_logits = result["answer_type_logits"]
+    #start_span = token_map[start_index]
+    #end_span = token_map[end_index] + 1
+    #short_span = Span(-1, -1)
+    #long_span = Span(-1, -1)
+    start_span = -1
+    end_span = -1
+    score = 0
+    predictions.append((score, summary, start_span, end_span))
+  #else:
+  #print(len(example.results.items()))
   score, summary, start_span, end_span = sorted(
       predictions, reverse=True, key=lambda tup: tup[0])[0]
   short_span = Span(start_span, end_span)
@@ -1493,13 +1497,13 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results):
   # Join examplew with features and raw results.
   examples = []
   merged = sorted(
-      examples_by_id + raw_results_by_id, # + features_by_id,
+      examples_by_id + raw_results_by_id + features_by_id,
       key=lambda tup: tup[0])
   for idx, datum in merged:
     if isinstance(datum, tuple):
       examples.append(EvalExample(datum[0], datum[1]))
-    #elif "token_map" in datum:
-    #  examples[-1].features[idx] = datum
+    elif "token_map" in datum:
+      examples[-1].features[idx] = datum
     else:
       examples[-1].results[idx] = datum
 
