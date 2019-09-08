@@ -12,12 +12,12 @@ NQ_BASELINE_DIR=gs://fat_storage/bert-joint-baseline
 
 DATA="gs://fat_storage/sharded_new_kb_data_mc512_unk0.02_test"
 NQ_DATA="gs://natural_questions/v1.0"
-LEARNING_RATE=2e-5
-NUM_EPOCHS=1
+LEARNING_RATE=3e-5
+NUM_EPOCHS=5
 SEED=1
 OUTPUT=gs://fat_storage/sharded_new_kb_data_mc512_unk0.02_test/output_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED
 
-gsutil mkdir $OUTPUT
+#gsutil mkdir $OUTPUT
 
 python3 -m fat.fat_bert_nq.run_nq \
     --logtostderr \
@@ -44,5 +44,14 @@ python3 -m fat.fat_bert_nq.run_nq \
     --max_context=512 \
     --include_unknown=0.02 \
     --use_tpu=True \
-    --tpu_name=$TPU_NAME \
+    --tpu_name=$TPU_NAME
 
+mkdir tmp
+
+gsutil cp $OUTPUT/predictions.json tmp/
+
+python -m natural_questions.nq_eval --logtostderr --gold_path=/home/vidhishabalachandran/datasets/v1.0/dev/nq-dev-0?.jsonl.gz --predictions_path=tmp/predictions.json
+
+cat tmp/predictions.json
+
+rm -rf tmp
