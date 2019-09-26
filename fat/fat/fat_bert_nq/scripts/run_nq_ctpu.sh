@@ -6,11 +6,12 @@ NQ_BASELINE_DIR="gs://fat_storage/bert-joint-baseline"
 
 SEQ_LEN=512
 UNK=0.05
+TRAIN_NUM=662333
 DATA="gs://fat_storage/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${UNK}"
 NQ_DATA="gs://natural_questions/v1.0"
 LEARNING_RATE=3e-5
 NUM_EPOCHS=1
-SEED=1
+SEED=2
 OUTPUT="gs://fat_storage/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${UNK}/output_nq-train-00_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED.bs32"
 
 
@@ -23,7 +24,7 @@ python3 -m fat.fat_bert_nq.run_nq \
     --output_dir=$OUTPUT \
     --eval_data_path=$DATA/dev \
     --train_precomputed_file=$DATA/train/*.tf-record \
-    --train_num_precomputed=387093 \
+    --train_num_precomputed=$TRAIN_NUM \
     --predict_file=$NQ_DATA/dev/*.jsonl.gz \
     --output_prediction_file=$OUTPUT/predictions.json \
     --do_lower_case=True \
