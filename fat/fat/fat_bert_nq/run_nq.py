@@ -740,7 +740,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
     else:
       tok_end_position = len(all_doc_tokens) - 1
 
-  # The -3 accounts for [CLS], [SEP] and [SEP] and [SEP]
+  # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
   max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
   max_tokens_for_para = int(max_tokens_for_doc / 2)
   #max_tokens_for_para = int(max_tokens_for_doc)
