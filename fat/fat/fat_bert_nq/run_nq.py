@@ -695,6 +695,8 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
     nl_fact_tokens.extend(sub_tokens)
   return nl_fact_tokens
 
+#tp = open('dev_context_text.txt', 'a')
+#tfp = open('dev_context_text_facts.txt', 'a')
 
 def convert_single_example(example, tokenizer, apr_obj, is_training):
   """Converts a single NqExample into a list of InputFeatures."""
@@ -741,6 +743,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
   # The -3 accounts for [CLS], [SEP] and [SEP] and [SEP]
   max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
   max_tokens_for_para = int(max_tokens_for_doc / 2)
+  #max_tokens_for_para = int(max_tokens_for_doc)
+
   # max_tokens_for_facts = max_tokens_for_doc - max_tokens_for_para
 
   # We can have documents that are longer than the maximum sequence length.
@@ -802,6 +806,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
     tokens.append("[SEP]")
     segment_ids.append(1)
 
+    #tp.write(" ".join(tokens)+"\n")
+
     aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                 example.entity_list, apr_obj,
                                                 tokenizer)
@@ -812,9 +818,13 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
       token_to_orig_map[len(tokens)] = -1  # check if this makes sense
       tokens.append(token)
       segment_ids.append(1)
+
     tokens.append("[SEP]")
     segment_ids.append(1)
+    
     assert len(tokens) == len(segment_ids)
+
+    #tfp.write(" ".join(tokens)+"\n")
 
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
