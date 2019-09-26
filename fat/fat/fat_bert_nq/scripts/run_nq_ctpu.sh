@@ -5,8 +5,8 @@ NQ_BASELINE_DIR="gs://fat_storage/bert-joint-baseline"
 
 
 SEQ_LEN=512
-UNK=0.02
-DATA="gs://fat_storage/sharded_kb_data_mc48_mseq$SEQ_LEN}_unk${UNK}"
+UNK=0.05
+DATA="gs://fat_storage/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${UNK}"
 NQ_DATA="gs://natural_questions/v1.0"
 LEARNING_RATE=3e-5
 NUM_EPOCHS=1
