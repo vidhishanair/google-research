@@ -97,8 +97,17 @@ def main(_):
                                                     FLAGS.shard_split_id,
                                                     "jsonl.gz")
     tf.logging.info("Reading file %s", input_file)
+
+    if FLAGS.create_pretrain_data:
+        pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
+                                                     FLAGS.split, FLAGS.task_id,
+                                                     FLAGS.shard_split_id,
+                                                     "txt"), 'w')
+    else:
+        pretrain_file = None
+
     for example in nq_data_utils.get_nq_examples(input_file):
-      for instance in creator_fn.process(example):
+      for instance in creator_fn.process(example, pretrain_file):
         instances.append(instance)
         instances_processed += 1
       if example["has_correct_context"]:
