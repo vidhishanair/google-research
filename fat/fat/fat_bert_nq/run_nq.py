@@ -98,6 +98,8 @@ flags.DEFINE_integer(
     "The maximum number of tokens for the question. Questions longer than "
     "this will be truncated to this length.")
 
+flags.DEFINE_bool("create_pretrain_data", False, "Whether to create_pretraining_data.")
+
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
 flags.DEFINE_bool("do_predict", False, "Whether to run eval on the dev set.")
@@ -698,7 +700,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 #tp = open('dev_context_text.txt', 'a')
 #tfp = open('dev_context_text_facts.txt', 'a')
 
-def convert_single_example(example, tokenizer, apr_obj, is_training):
+def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file=None):
   """Converts a single NqExample into a list of InputFeatures."""
   tok_to_orig_index = []
   tok_to_textmap_index = []
@@ -793,6 +795,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
     tokens.append("[SEP]")
     segment_ids.append(0)
 
+    text_tokens = []
+    fact_tokens = []
     for i in range(doc_span.length):
       split_token_index = doc_span.start + i
       token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
@@ -801,12 +805,13 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
                                             split_token_index)
       token_is_max_context[len(tokens)] = is_max_context
       tokens.append(all_doc_tokens[split_token_index])
+      text_tokens.append(all_doc_tokens[split_token_index])
       segment_ids.append(1)
-    #tf.logging.info(" ".join(tokens))
     tokens.append("[SEP]")
     segment_ids.append(1)
 
-    #tp.write(" ".join(tokens)+"\n")
+    if FLAGS.create_pretrain_data:
+        pretrain_file.write(" ".join(text_tokens)+"\n")
 
     aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                 example.entity_list, apr_obj,
@@ -817,6 +822,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
         break
       token_to_orig_map[len(tokens)] = -1  # check if this makes sense
       tokens.append(token)
+      fact_tokens.append(token)
       segment_ids.append(1)
 
     tokens.append("[SEP]")
@@ -824,7 +830,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training):
     
     assert len(tokens) == len(segment_ids)
 
-    #tfp.write(" ".join(tokens)+"\n")
+    if FLAGS.create_pretrain_data:
+        pretrain_file.write(" ".join(fact_tokens)+"\n\n")
 
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
@@ -944,14 +951,14 @@ class CreateTFExampleFn(object):
     self.apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
                                        shard_id=FLAGS.shard_split_id)
 
-  def process(self, example):
+  def process(self, example, pretrain_file=None):
     """Coverts an NQ example in a list of serialized tf examples."""
     nq_examples = read_nq_entry(example, self.is_training)
     input_features = []
     for nq_example in nq_examples:
       input_features.extend(
           convert_single_example(nq_example, self.tokenizer, self.apr_obj,
-                                 self.is_training))
+                                 self.is_training, pretrain_file))
 
     for input_feature in input_features:
       input_feature.example_index = int(example["id"])
