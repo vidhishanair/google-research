@@ -819,7 +819,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     segment_ids.append(1)
 
     if FLAGS.create_pretrain_data:
-        pretrain_file.write(" ".join(text_tokens)+"\n")
+        pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
 
     aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                 example.entity_list, apr_obj,
@@ -839,7 +839,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     assert len(tokens) == len(segment_ids)
 
     if FLAGS.create_pretrain_data:
-        pretrain_file.write(" ".join(fact_tokens)+"\n\n")
+        pretrain_file.write(" ".join(fact_tokens).replace(" ##", "")+"\n\n")
 
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
 

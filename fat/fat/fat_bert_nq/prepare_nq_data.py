@@ -82,6 +82,7 @@ flags.DEFINE_string("input_data_dir", "", "input_data_dir")
 
 flags.DEFINE_string("output_data_dir", " ", "output_data_dir")
 flags.DEFINE_bool("merge_eval", "True", "Flag for pre-proc or merge")
+flags.DEFINE_string("pretrain_data_dir", " ", "pretrain_data_dir")
 
 
 def main(_):
