@@ -98,6 +98,8 @@ flags.DEFINE_integer(
     "The maximum number of tokens for the question. Questions longer than "
     "this will be truncated to this length.")
 
+flags.DEFINE_bool("create_sep_text_fact_inputs", False, "Whether to create seperate text and fact input features.")
+
 flags.DEFINE_bool("create_pretrain_data", False, "Whether to create_pretraining_data.")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
@@ -785,15 +787,29 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
           continue
     # tf.logging.info("Processing Instance")
     tokens = []
+    text_sep_tokens = []
+    fact_sep_tokens = []
     token_to_orig_map = {}
     token_is_max_context = {}
     segment_ids = []
+    text_sep_segment_ids = []
+    fact_sep_segment_ids = []
+
     tokens.append("[CLS]")
     segment_ids.append(0)
     tokens.extend(query_tokens)
     segment_ids.extend([0] * len(query_tokens))
     tokens.append("[SEP]")
     segment_ids.append(0)
+
+    text_sep_tokens.append("[CLS]")
+    fact_sep_tokens.append("[CLS]")
+    text_sep_segment_ids.append(0)
+    fact_sep_segment_ids.append(0)
+    text_sep_tokens.extend(query_tokens)
+    text_sep_segment_ids.extend([0] * len(query_tokens))
+    text_sep_tokens.append("[SEP]")
+    text_sep_segment_ids.append(0)
 
     text_tokens = []
     fact_tokens = []
@@ -804,11 +820,19 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
       is_max_context = check_is_max_context(doc_spans, doc_span_index,
                                             split_token_index)
       token_is_max_context[len(tokens)] = is_max_context
+
       tokens.append(all_doc_tokens[split_token_index])
       text_tokens.append(all_doc_tokens[split_token_index])
       segment_ids.append(1)
+
+      text_sep_tokens.append(all_doc_tokens[split_token_index])
+      text_sep_segment_ids.append(1)
+
     tokens.append("[SEP]")
     segment_ids.append(1)
+
+    text_sep_tokens.append("[SEP]")
+    text_sep_segment_ids.append(1)
 
     if FLAGS.create_pretrain_data:
         pretrain_file.write(" ".join(text_tokens)+"\n")
@@ -825,9 +849,15 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
       fact_tokens.append(token)
       segment_ids.append(1)
 
+      fact_sep_tokens.append(token)
+      fact_sep_segment_ids.append(0)
+
     tokens.append("[SEP]")
     segment_ids.append(1)
-    
+
+    fact_sep_tokens.append("[SEP]")
+    fact_sep_segment_ids.append(0)
+
     assert len(tokens) == len(segment_ids)
 
     if FLAGS.create_pretrain_data:
@@ -835,15 +865,30 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
 
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
+    text_input_ids = tokenizer.convert_tokens_to_ids(text_sep_tokens)
+    fact_input_ids = tokenizer.convert_tokens_to_ids(fact_sep_tokens)
+
     # The mask has 1 for real tokens and 0 for padding tokens. Only real
     # tokens are attended to.
     input_mask = [1] * len(input_ids)
+    text_input_mask = [1] * len(text_input_ids)
+    fact_input_mask = [1] * len(fact_input_ids)
 
     # Zero-pad up to the sequence length.
     padding = [0] * (FLAGS.max_seq_length - len(input_ids))
     input_ids.extend(padding)
     input_mask.extend(padding)
     segment_ids.extend(padding)
+
+    padding = [0] * (FLAGS.max_seq_length - len(text_input_ids))
+    text_input_ids.extend(padding)
+    text_input_mask.extend(padding)
+    text_sep_segment_ids.extend(padding)
+
+    padding = [0] * (FLAGS.max_seq_length - len(fact_input_ids))
+    fact_input_ids.extend(padding)
+    fact_input_mask.extend(padding)
+    fact_sep_segment_ids.extend(padding)
     # tf.logging.info('Len input_ids : %d', len(input_ids))
     # tf.logging.info('Max Seq Len : %d', FLAGS.max_seq_length)
     # tf.logging.info('Max tokens facts : %d', max_tokens_for_current_facts)
@@ -897,7 +942,13 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         start_position=start_position,
         end_position=end_position,
         answer_text=answer_text,
-        answer_type=answer_type
+        answer_type=answer_type,
+        text_sep_input_ids=text_input_ids,
+        text_sep_input_mask=text_input_mask,
+        text_sep_segment_ids=text_sep_segment_ids,
+        fact_sep_input_ids=fact_input_ids,
+        fact_sep_input_mask=fact_input_mask,
+        fact_sep_segment_ids=fact_sep_segment_ids
     )  # Added facts to is max context and token to orig?
 
     features.append(feature)
@@ -975,6 +1026,15 @@ class CreateTFExampleFn(object):
       features["input_mask"] = create_int_feature(input_feature.input_mask)
       features["segment_ids"] = create_int_feature(input_feature.segment_ids)
 
+      if FLAGS.create_sep_text_fact_inputs:
+          features["text_sep_input_ids"] = create_int_feature(input_feature.text_sep_input_ids)
+          features["text_sep_input_mask"] = create_int_feature(input_feature.text_sep_input_mask)
+          features["text_sep_segment_ids"] = create_int_feature(input_feature.text_sep_segment_ids)
+
+          features["fact_sep_input_ids"] = create_int_feature(input_feature.fact_sep_input_ids)
+          features["fact_sep_input_mask"] = create_int_feature(input_feature.fact_sep_input_mask)
+          features["fact_sep_segment_ids"] = create_int_feature(input_feature.fact_sep_segment_ids)
+
       if self.is_training:
         features["start_positions"] = create_int_feature(
             [input_feature.start_position])
@@ -1008,7 +1068,13 @@ class InputFeatures(object):
                start_position=None,
                end_position=None,
                answer_text="",
-               answer_type=AnswerType.SHORT):
+               answer_type=AnswerType.SHORT,
+               text_sep_input_ids=None,
+               text_sep_input_mask=None,
+               text_sep_segment_ids=None,
+               fact_sep_input_ids=None,
+               fact_sep_input_mask=None,
+               fact_sep_segment_ids=None):
     self.unique_id = unique_id
     self.example_index = example_index
     self.doc_span_index = doc_span_index
@@ -1022,6 +1088,12 @@ class InputFeatures(object):
     self.end_position = end_position
     self.answer_text = answer_text
     self.answer_type = answer_type
+    self.text_sep_input_ids = text_sep_input_ids
+    self.text_sep_input_mask = text_sep_input_mask
+    self.text_sep_segment_ids = text_sep_segment_ids
+    self.fact_sep_input_ids = fact_sep_input_ids
+    self.fact_text_sep_input_mask = fact_sep_input_mask
+    self.fact_text_sep_segment_ids = fact_sep_segment_ids
 
 
 def read_nq_examples(input_file, is_training):
