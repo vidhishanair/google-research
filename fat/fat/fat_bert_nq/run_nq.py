@@ -1092,8 +1092,8 @@ class InputFeatures(object):
     self.text_sep_input_mask = text_sep_input_mask
     self.text_sep_segment_ids = text_sep_segment_ids
     self.fact_sep_input_ids = fact_sep_input_ids
-    self.fact_text_sep_input_mask = fact_sep_input_mask
-    self.fact_text_sep_segment_ids = fact_sep_segment_ids
+    self.fact_sep_input_mask = fact_sep_input_mask
+    self.fact_sep_segment_ids = fact_sep_segment_ids
 
 
 def read_nq_examples(input_file, is_training):
