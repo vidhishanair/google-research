@@ -1178,6 +1178,111 @@ def create_model(bert_config, is_training, input_ids, input_mask, segment_ids,
   return (start_logits, end_logits, answer_type_logits)
 
 
+def create_sep_model(bert_config, is_training, text_sep_input_ids, text_sep_input_mask, text_sep_segment_ids,
+                     fact_sep_input_ids, fact_sep_input_mask, fact_sep_segment_ids,
+                 use_one_hot_embeddings):
+    """Creates a classification model."""
+
+    text_model = modeling.BertModel(
+        config=bert_config,
+        is_training=is_training,
+        input_ids=text_sep_input_ids,
+        input_mask=text_sep_input_mask,
+        token_type_ids=text_sep_segment_ids,
+        use_one_hot_embeddings=use_one_hot_embeddings)
+
+    # Get the logits for the start and end predictions.
+    text_final_hidden = text_model.get_sequence_output()
+
+    fact_model = modeling.BertModel(
+        config=bert_config,
+        is_training=is_training,
+        input_ids=fact_sep_input_ids,
+        input_mask=fact_sep_input_mask,
+        token_type_ids=fact_sep_segment_ids,
+        use_one_hot_embeddings=use_one_hot_embeddings)
+
+    # Get the logits for the start and end predictions.
+    fact_final_hidden = fact_model.get_sequence_output()
+
+    # final_hidden = tf.concat([text_final_hidden, fact_final_hidden], 1)
+    # final_input_mask = tf.concat([text_sep_input_mask, fact_sep_input_mask], 1)
+    final_hidden_shape = modeling.get_shape_list(text_final_hidden, expected_rank=3)
+    batch_size = final_hidden_shape[0]
+    seq_length = final_hidden_shape[1]
+    hidden_size = final_hidden_shape[2]
+
+    attention_head_size = int(hidden_size / bert_config.num_attention_heads)
+    attention_mask = modeling.create_attention_mask_from_input_mask(
+        text_final_hidden, fact_sep_input_mask)
+
+    att = modeling.attention_layer(
+        from_tensor=text_final_hidden,
+        to_tensor=fact_final_hidden,
+        attention_mask=attention_mask,
+        num_attention_heads=bert_config.num_attention_heads,
+        size_per_head=attention_head_size,
+        attention_probs_dropout_prob=bert_config.attention_probs_dropout_prob,
+        initializer_range=bert_config.initializer_range,
+        do_return_2d_tensor=False,
+        batch_size=batch_size,
+        from_seq_length=seq_length,
+        to_seq_length=seq_length)
+
+    # final_hidden_shape = modeling.get_shape_list(att, expected_rank=3)
+    # batch_size = final_hidden_shape[0]
+    # seq_length = final_hidden_shape[1]
+    # hidden_size = final_hidden_shape[2]
+
+    output_weights = tf.get_variable(
+        "cls/nq/output_weights", [2, hidden_size],
+        initializer=tf.truncated_normal_initializer(stddev=0.02))
+
+    output_bias = tf.get_variable(
+        "cls/nq/output_bias", [2], initializer=tf.zeros_initializer())
+
+    final_hidden_matrix = tf.reshape(att,
+                                     [batch_size * seq_length, hidden_size])
+    logits = tf.matmul(final_hidden_matrix, output_weights, transpose_b=True)
+    logits = tf.nn.bias_add(logits, output_bias)
+
+    logits = tf.reshape(logits, [batch_size, seq_length, 2])
+    logits = tf.transpose(logits, [2, 0, 1])
+
+    unstacked_logits = tf.unstack(logits, axis=0)
+
+    (start_logits, end_logits) = (unstacked_logits[0], unstacked_logits[1])
+
+    # We "pool" the model by simply taking the hidden state corresponding
+    # to the first token. We assume that this has been pre-trained
+    first_token_tensor = tf.squeeze(att[:, 0:1, :], axis=1)
+    pooled_output = tf.layers.dense(
+        first_token_tensor,
+        hidden_size,
+        activation=tf.tanh,
+        kernel_initializer=modeling.create_initializer(bert_config.initializer_range))
+
+    # Get the logits for the answer type prediction.
+    answer_type_output_layer = pooled_output
+    answer_type_hidden_size = answer_type_output_layer.shape[-1].value
+
+    num_answer_types = 5  # YES, NO, UNKNOWN, SHORT, LONG
+    answer_type_output_weights = tf.get_variable(
+        "answer_type_output_weights", [num_answer_types, answer_type_hidden_size],
+        initializer=tf.truncated_normal_initializer(stddev=0.02))
+
+    answer_type_output_bias = tf.get_variable(
+        "answer_type_output_bias", [num_answer_types],
+        initializer=tf.zeros_initializer())
+
+    answer_type_logits = tf.matmul(
+        answer_type_output_layer, answer_type_output_weights, transpose_b=True)
+    answer_type_logits = tf.nn.bias_add(answer_type_logits,
+                                        answer_type_output_bias)
+
+    return (start_logits, end_logits, answer_type_logits)
+
+
 def model_fn_builder(bert_config, init_checkpoint, learning_rate,
                      num_train_steps, num_warmup_steps, use_tpu,
                      use_one_hot_embeddings):
@@ -1195,14 +1300,25 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     input_mask = features["input_mask"]
     segment_ids = features["segment_ids"]
 
+    text_sep_input_ids = features["text_sep_input_ids"]
+    text_sep_input_mask = features["text_sep_input_mask"]
+    text_sep_segment_ids = features["text_sep_segment_ids"]
+
+    fact_sep_input_ids = features["fact_sep_input_ids"]
+    fact_sep_input_mask = features["fact_sep_input_mask"]
+    fact_sep_segment_ids = features["fact_sep_segment_ids"]
+
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-    (start_logits, end_logits, answer_type_logits) = create_model(
+    (start_logits, end_logits, answer_type_logits) = create_sep_model(
         bert_config=bert_config,
         is_training=is_training,
-        input_ids=input_ids,
-        input_mask=input_mask,
-        segment_ids=segment_ids,
+        text_sep_input_ids=text_sep_input_ids,
+        text_sep_input_mask=text_sep_input_mask,
+        text_sep_segment_ids=text_sep_segment_ids,
+        fact_sep_input_ids=fact_sep_input_ids,
+        fact_sep_input_mask=fact_sep_input_mask,
+        fact_sep_segment_ids=fact_sep_segment_ids,
         use_one_hot_embeddings=use_one_hot_embeddings)
 
     tvars = tf.trainable_variables()
@@ -1232,7 +1348,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
-      seq_length = modeling.get_shape_list(input_ids)[1]
+      seq_length = modeling.get_shape_list(text_sep_input_ids)[1]
 
       # Computes the loss for positions.
       def compute_loss(logits, positions):
@@ -1298,6 +1414,15 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       "input_mask": tf.FixedLenFeature([seq_length], tf.int64),
       "segment_ids": tf.FixedLenFeature([seq_length], tf.int64),
   }
+
+  if FLAGS.create_sep_text_fact_inputs:
+      name_to_features["text_sep_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["text_sep_input_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["text_sep_segment_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+
+      name_to_features["fact_sep_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["fact_sep_input_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["fact_sep_segment_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
 
   if is_training:
     name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
@@ -1377,6 +1502,15 @@ class FeatureWriter(object):
     features["input_ids"] = create_int_feature(feature.input_ids)
     features["input_mask"] = create_int_feature(feature.input_mask)
     features["segment_ids"] = create_int_feature(feature.segment_ids)
+
+    if FLAGS.create_sep_text_fact_inputs:
+        features["text_sep_input_ids"] = create_int_feature(feature.text_sep_input_ids)
+        features["text_sep_input_mask"] = create_int_feature(feature.text_sep_input_mask)
+        features["text_sep_segment_ids"] = create_int_feature(feature.text_sep_segment_ids)
+
+        features["fact_sep_input_ids"] = create_int_feature(feature.fact_sep_input_ids)
+        features["fact_sep_input_mask"] = create_int_feature(feature.fact_sep_input_mask)
+        features["fact_sep_segment_ids"] = create_int_feature(feature.fact_sep_segment_ids)
 
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
