@@ -1415,6 +1415,15 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       "segment_ids": tf.FixedLenFeature([seq_length], tf.int64),
   }
 
+  if FLAGS.create_sep_text_fact_inputs:
+      name_to_features["text_sep_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["text_sep_input_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["text_sep_segment_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+
+      name_to_features["fact_sep_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["fact_sep_input_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["fact_sep_segment_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+
   if is_training:
     name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
     name_to_features["end_positions"] = tf.FixedLenFeature([], tf.int64)
@@ -1493,6 +1502,15 @@ class FeatureWriter(object):
     features["input_ids"] = create_int_feature(feature.input_ids)
     features["input_mask"] = create_int_feature(feature.input_mask)
     features["segment_ids"] = create_int_feature(feature.segment_ids)
+
+    if FLAGS.create_sep_text_fact_inputs:
+        features["text_sep_input_ids"] = create_int_feature(feature.text_sep_input_ids)
+        features["text_sep_input_mask"] = create_int_feature(feature.text_sep_input_mask)
+        features["text_sep_segment_ids"] = create_int_feature(feature.text_sep_segment_ids)
+
+        features["fact_sep_input_ids"] = create_int_feature(feature.fact_sep_input_ids)
+        features["fact_sep_input_mask"] = create_int_feature(feature.fact_sep_input_mask)
+        features["fact_sep_segment_ids"] = create_int_feature(feature.fact_sep_segment_ids)
 
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
