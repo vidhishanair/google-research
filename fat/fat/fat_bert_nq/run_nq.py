@@ -747,9 +747,6 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
   # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
   max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
   max_tokens_for_para = int(max_tokens_for_doc / 2)
-  #max_tokens_for_para = int(max_tokens_for_doc)
-
-  # max_tokens_for_facts = max_tokens_for_doc - max_tokens_for_para
 
   # We can have documents that are longer than the maximum sequence length.
   # To deal with this we do a sliding window approach, where we take chunks
@@ -880,12 +877,12 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     input_mask.extend(padding)
     segment_ids.extend(padding)
 
-    padding = [0] * (FLAGS.max_seq_length - len(text_input_ids))
+    padding = [0] * (FLAGS.max_seq_length/2 - len(text_input_ids))
     text_input_ids.extend(padding)
     text_input_mask.extend(padding)
     text_sep_segment_ids.extend(padding)
 
-    padding = [0] * (FLAGS.max_seq_length - len(fact_input_ids))
+    padding = [0] * (FLAGS.max_seq_length/2 - len(fact_input_ids))
     fact_input_ids.extend(padding)
     fact_input_mask.extend(padding)
     fact_sep_segment_ids.extend(padding)
@@ -896,6 +893,9 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     assert len(input_ids) == FLAGS.max_seq_length
     assert len(input_mask) == FLAGS.max_seq_length
     assert len(segment_ids) == FLAGS.max_seq_length
+
+    assert len(text_input_ids) <= FLAGS.max_seq_length/2
+    assert len(fact_input_ids) <= FLAGS.max_seq_length/2
 
     start_position = None
     end_position = None
@@ -1296,30 +1296,40 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
       tf.logging.info("  name = %s, shape = %s" % (name, features[name].shape))
 
     unique_ids = features["unique_ids"]
-    input_ids = features["input_ids"]
-    input_mask = features["input_mask"]
-    segment_ids = features["segment_ids"]
-
-    text_sep_input_ids = features["text_sep_input_ids"]
-    text_sep_input_mask = features["text_sep_input_mask"]
-    text_sep_segment_ids = features["text_sep_segment_ids"]
-
-    fact_sep_input_ids = features["fact_sep_input_ids"]
-    fact_sep_input_mask = features["fact_sep_input_mask"]
-    fact_sep_segment_ids = features["fact_sep_segment_ids"]
-
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
 
-    (start_logits, end_logits, answer_type_logits) = create_sep_model(
-        bert_config=bert_config,
-        is_training=is_training,
-        text_sep_input_ids=text_sep_input_ids,
-        text_sep_input_mask=text_sep_input_mask,
-        text_sep_segment_ids=text_sep_segment_ids,
-        fact_sep_input_ids=fact_sep_input_ids,
-        fact_sep_input_mask=fact_sep_input_mask,
-        fact_sep_segment_ids=fact_sep_segment_ids,
-        use_one_hot_embeddings=use_one_hot_embeddings)
+    if FLAGS.create_sep_text_fact_inputs:
+        text_sep_input_ids = features["text_sep_input_ids"]
+        text_sep_input_mask = features["text_sep_input_mask"]
+        text_sep_segment_ids = features["text_sep_segment_ids"]
+
+        fact_sep_input_ids = features["fact_sep_input_ids"]
+        fact_sep_input_mask = features["fact_sep_input_mask"]
+        fact_sep_segment_ids = features["fact_sep_segment_ids"]
+        seq_length = modeling.get_shape_list(text_sep_input_ids)[1]
+
+        (start_logits, end_logits, answer_type_logits) = create_sep_model(
+            bert_config=bert_config,
+            is_training=is_training,
+            text_sep_input_ids=text_sep_input_ids,
+            text_sep_input_mask=text_sep_input_mask,
+            text_sep_segment_ids=text_sep_segment_ids,
+            fact_sep_input_ids=fact_sep_input_ids,
+            fact_sep_input_mask=fact_sep_input_mask,
+            fact_sep_segment_ids=fact_sep_segment_ids,
+            use_one_hot_embeddings=use_one_hot_embeddings)
+    else:
+        input_ids = features["input_ids"]
+        input_mask = features["input_mask"]
+        segment_ids = features["segment_ids"]
+        seq_length = modeling.get_shape_list(input_ids)[1]
+        (start_logits, end_logits, answer_type_logits) = create_model(
+            bert_config=bert_config,
+            is_training=is_training,
+            input_ids=input_ids,
+            input_mask=input_mask,
+            segment_ids=segment_ids,
+            use_one_hot_embeddings=use_one_hot_embeddings)
 
     tvars = tf.trainable_variables()
 
@@ -1348,8 +1358,6 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
-      seq_length = modeling.get_shape_list(text_sep_input_ids)[1]
-
       # Computes the loss for positions.
       def compute_loss(logits, positions):
         one_hot_positions = tf.one_hot(
@@ -1416,13 +1424,13 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
   }
 
   if FLAGS.create_sep_text_fact_inputs:
-      name_to_features["text_sep_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
-      name_to_features["text_sep_input_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
-      name_to_features["text_sep_segment_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["text_sep_input_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
+      name_to_features["text_sep_input_mask"] = tf.FixedLenFeature([seq_length/2], tf.int64)
+      name_to_features["text_sep_segment_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
 
-      name_to_features["fact_sep_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
-      name_to_features["fact_sep_input_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
-      name_to_features["fact_sep_segment_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["fact_sep_input_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
+      name_to_features["fact_sep_input_mask"] = tf.FixedLenFeature([seq_length/2], tf.int64)
+      name_to_features["fact_sep_segment_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
 
   if is_training:
     name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
