@@ -7,7 +7,8 @@ NQ_BASELINE_DIR="/remote/bones/user/vbalacha/bert-joint-baseline"
 APR_DIR="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/"
 SEQ_LEN=512
 INC_UNK=0.02
-OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_text_fact_seperate_features_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
+OUTPUT="/remote/bones/user/vbalacha/text_fact_sep/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_text_fact_seperate_features_halfmaxlen_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
+
 
 #OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/tmpdir"
 
@@ -32,7 +33,6 @@ do
           --split=dev \
           --task_id=$i \
           --shard_split_id=$j \
-          --create_sep_text_fact_inputs=True \
           --input_data_dir=/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/ \
           --output_data_dir=$OUTPUT \
           --apr_files_dir=$APR_DIR \
