@@ -865,13 +865,13 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     text_input_ids = tokenizer.convert_tokens_to_ids(text_sep_tokens)
     fact_input_ids = tokenizer.convert_tokens_to_ids(fact_sep_tokens)
     if len(text_input_ids) > int(FLAGS.max_seq_length/2):
-        text_sep_tokens = text_sep_tokens[:FLAGS.max_seq_length/2]
-        text_input_ids = text_input_ids[:FLAGS.max_seq_length/2]
-        text_sep_segment_ids = text_sep_segment_ids[:FLAGS.max_seq_length/2]
+        text_sep_tokens = text_sep_tokens[:int(FLAGS.max_seq_length/2)]
+        text_input_ids = text_input_ids[:int(FLAGS.max_seq_length/2)]
+        text_sep_segment_ids = text_sep_segment_ids[:int(FLAGS.max_seq_length/2)]
     if len(fact_input_ids) > int(FLAGS.max_seq_length/2):
-        fact_sep_tokens = fact_sep_tokens[:FLAGS.max_seq_length/2]
-        fact_input_ids = fact_input_ids[:FLAGS.max_seq_length/2]
-        fact_sep_segment_ids = fact_sep_segment_ids[:FLAGS.max_seq_length/2]
+        fact_sep_tokens = fact_sep_tokens[:int(FLAGS.max_seq_length/2)]
+        fact_input_ids = fact_input_ids[:int(FLAGS.max_seq_length/2)]
+        fact_sep_segment_ids = fact_sep_segment_ids[:int(FLAGS.max_seq_length/2)]
 
     # The mask has 1 for real tokens and 0 for padding tokens. Only real
     # tokens are attended to.
