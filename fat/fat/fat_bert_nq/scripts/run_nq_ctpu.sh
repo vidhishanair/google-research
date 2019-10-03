@@ -1,18 +1,19 @@
 #!/bin/bash
 
-BERT_BASE_DIR="gs://fat_storage/pretrained_bert/wwm_uncased_L-24_H-1024_A-16"
+#BERT_BASE_DIR="gs://fat_storage/pretrained_bert/wwm_uncased_L-24_H-1024_A-16"
 NQ_BASELINE_DIR="gs://fat_storage/bert-joint-baseline"
+BERT_BASE_DIR="gs://fat_storage/pretrained_bert/uncased_L-12_H-768_A-12"
 
 
 SEQ_LEN=512
-UNK=0.05
-TRAIN_NUM=662333
-DATA="gs://fat_storage/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${UNK}"
+UNK=0.02
+TRAIN_NUM=386925
+DATA="gs://fat_storage/sharded_kb_data_text_fact_seperate_features_mc48_mseq${SEQ_LEN}_unk${UNK}"
 NQ_DATA="gs://natural_questions/v1.0"
 LEARNING_RATE=3e-5
 NUM_EPOCHS=1
-SEED=2
-OUTPUT="gs://fat_storage/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${UNK}/output_nq-train-00_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED.bs32"
+SEED=1
+OUTPUT="gs://fat_storage/sharded_kb_data_text_fact_seperate_features_mc48_mseq${SEQ_LEN}_unk${UNK}/output_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED.bs32"
 
 
 python3 -m fat.fat_bert_nq.run_nq \
@@ -31,7 +32,8 @@ python3 -m fat.fat_bert_nq.run_nq \
     --max_seq_length=${SEQ_LEN} \
     --doc_stride=128 \
     --max_query_length=64 \
-    --train_batch_size=32 \
+    --train_batch_size=16 \
+    --create_sep_text_fact_inputs=True \
     --do_train=True \
     --do_predict=True \
     --learning_rate=$LEARNING_RATE \
