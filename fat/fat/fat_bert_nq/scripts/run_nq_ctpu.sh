@@ -1,7 +1,8 @@
 #!/bin/bash
 
-BERT_BASE_DIR="gs://fat_storage/pretrained_bert/wwm_uncased_L-24_H-1024_A-16"
+#BERT_BASE_DIR="gs://fat_storage/pretrained_bert/wwm_uncased_L-24_H-1024_A-16"
 NQ_BASELINE_DIR="gs://fat_storage/bert-joint-baseline"
+BERT_BASE_DIR="gs://fat_storage/pretrained_bert/uncased_L-12_H-768_A-12"
 
 
 SEQ_LEN=512
@@ -39,14 +40,14 @@ python3 -m fat.fat_bert_nq.run_nq \
     --num_train_epochs=$NUM_EPOCHS \
     --vocab_file=$NQ_BASELINE_DIR/vocab-nq.txt \
     --include_unknowns=${UNK} \
-    #--use_tpu=True \
-    #--tpu_name=$TPU_NAME
+    --use_tpu=True \
+    --tpu_name=$TPU_NAME
 
 mkdir tmp
 
 gsutil cp $OUTPUT/predictions.json tmp/
 
-python -m natural_questions.nq_eval --logtostderr --gold_path=/home/vbalacha/datasets/v1.0/dev/nq-dev-0?.jsonl.gz --predictions_path=tmp/predictions.json > tmp/metrics.json
+python -m natural_questions.nq_eval --logtostderr --gold_path=/home/vidhishabalachandran/datasets/v1.0/dev/nq-dev-0?.jsonl.gz --predictions_path=tmp/predictions.json > tmp/metrics.json
 
 cat tmp/metrics.json
 
