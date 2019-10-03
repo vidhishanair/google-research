@@ -877,12 +877,12 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     input_mask.extend(padding)
     segment_ids.extend(padding)
 
-    padding = [0] * (FLAGS.max_seq_length/2 - len(text_input_ids))
+    padding = [0] * (int(FLAGS.max_seq_length/2) - len(text_input_ids))
     text_input_ids.extend(padding)
     text_input_mask.extend(padding)
     text_sep_segment_ids.extend(padding)
 
-    padding = [0] * (FLAGS.max_seq_length/2 - len(fact_input_ids))
+    padding = [0] * (int(FLAGS.max_seq_length/2) - len(fact_input_ids))
     fact_input_ids.extend(padding)
     fact_input_mask.extend(padding)
     fact_sep_segment_ids.extend(padding)
@@ -894,8 +894,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     assert len(input_mask) == FLAGS.max_seq_length
     assert len(segment_ids) == FLAGS.max_seq_length
 
-    assert len(text_input_ids) <= FLAGS.max_seq_length/2
-    assert len(fact_input_ids) <= FLAGS.max_seq_length/2
+    assert len(text_input_ids) <= int(FLAGS.max_seq_length/2)
+    assert len(fact_input_ids) <= int(FLAGS.max_seq_length/2)
 
     start_position = None
     end_position = None
@@ -1424,13 +1424,13 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
   }
 
   if FLAGS.create_sep_text_fact_inputs:
-      name_to_features["text_sep_input_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
-      name_to_features["text_sep_input_mask"] = tf.FixedLenFeature([seq_length/2], tf.int64)
-      name_to_features["text_sep_segment_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
+      name_to_features["text_sep_input_ids"] = tf.FixedLenFeature([int(seq_length/2)], tf.int64)
+      name_to_features["text_sep_input_mask"] = tf.FixedLenFeature([int(seq_length/2)], tf.int64)
+      name_to_features["text_sep_segment_ids"] = tf.FixedLenFeature([int(seq_length/2)], tf.int64)
 
-      name_to_features["fact_sep_input_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
-      name_to_features["fact_sep_input_mask"] = tf.FixedLenFeature([seq_length/2], tf.int64)
-      name_to_features["fact_sep_segment_ids"] = tf.FixedLenFeature([seq_length/2], tf.int64)
+      name_to_features["fact_sep_input_ids"] = tf.FixedLenFeature([int(seq_length/2)], tf.int64)
+      name_to_features["fact_sep_input_mask"] = tf.FixedLenFeature([int(seq_length/2)], tf.int64)
+      name_to_features["fact_sep_segment_ids"] = tf.FixedLenFeature([int(seq_length/2)], tf.int64)
 
   if is_training:
     name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
