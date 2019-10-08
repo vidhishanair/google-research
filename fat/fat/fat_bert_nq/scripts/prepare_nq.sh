@@ -1,19 +1,18 @@
 #!/bin/bash
 
-BERT_BASE_DIR="/remote/bones/user/vbalacha/pretrained_bert/uncased_L-24_H-1024_A-24"
+BERT_BASE_DIR="/remote/bones/user/vbalacha/pretrained_bert/wwm_uncased_L-24_H-1024_A-24"
 NQ_BASELINE_DIR="/remote/bones/user/vbalacha/bert-joint-baseline"
-#LOAD_MODEL="output/squad-0.1_bertbase_qrystartend_finetune_lr3e-5/best_model"
-#SQUAD_DIR="../datasets/zero-shot-relation-extraction/relation_splits/split_both_1/"
 APR_DIR="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/"
 SEQ_LEN=512
-INC_UNK=0.02
-OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_entity_seperated_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
+INC_UNK=0.5
+OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_non_tokenized_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
 
-#OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/tmpdir"
 
 mkdir -p $OUTPUT
 mkdir -p $OUTPUT/train
 mkdir -p $OUTPUT/dev
+mkdir -p $OUTPUT/pretrain
+mkdir -p $OUTPUT/pretrain/train
 
 for j in {0..6}
 #for i in {0..4}
@@ -32,13 +31,16 @@ do
           --shard_split_id=$j \
           --input_data_dir=/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/ \
           --output_data_dir=$OUTPUT \
+          --pretrain_data_dir=$OUTPUT/pretrain \
+          --create_pretrain_data=True \
           --apr_files_dir=$APR_DIR \
           --full_wiki=True \
           --vocab_file=$NQ_BASELINE_DIR/vocab-nq.txt \
           --do_lower_case=True \
+          --use_entity_markers=False \
           --merge_eval=False \
           --max_seq_length=$SEQ_LEN \
-          --include_unknowns=$INC_UNK > log/dev_$i$j.log 2>&1 &
+          --include_unknowns=$INC_UNK > log/non_tokenized_train_$i$j.log 2>&1 &
     done
     wait
     echo "All Done for this iteration"

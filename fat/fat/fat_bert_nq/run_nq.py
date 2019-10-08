@@ -109,6 +109,8 @@ flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
 flags.DEFINE_bool("do_predict", False, "Whether to run eval on the dev set.")
 
+flags.DEFINE_bool("use_entity_markers", False, "Whether to add explicit entity seperators")
+
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
 flags.DEFINE_integer("predict_batch_size", 8,
@@ -686,10 +688,16 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
     facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
     # tf.logging.info("Sorted facts: ")
     # tf.logging.info(str(facts))
-    nl_facts = " . ".join([
-        str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
-        for x in facts
-    ])
+    if FLAGS.use_entity_markers:
+        nl_facts = " . ".join([
+            "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
+            for x in facts
+        ])
+    else:
+        nl_facts = " . ".join([
+            str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
+            for x in facts
+        ])
   else:
     nl_facts = ""
 
@@ -820,7 +828,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     segment_ids.append(1)
 
     if FLAGS.create_pretrain_data:
-        pretrain_file.write(" ".join(text_tokens)+"\n")
+        pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
 
     aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                 example.entity_list, apr_obj,
@@ -840,7 +848,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     assert len(tokens) == len(segment_ids)
 
     if FLAGS.create_pretrain_data:
-        pretrain_file.write(" ".join(fact_tokens)+"\n\n")
+        pretrain_file.write(" ".join(fact_tokens).replace(" ##", "")+"\n\n")
 
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
