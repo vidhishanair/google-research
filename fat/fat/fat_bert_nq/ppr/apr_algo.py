@@ -183,3 +183,21 @@ def csr_topk_fact_extractor(adj_mat, rel_dict, freq_dict, entity_names,
                   (obj_id, obj_name),
                   (rel_id, rel_name), score))
   return facts
+
+
+# def csr_topk_fact_extractor(adj_mat, rel_dict, entity_names):
+#     """Return random facts.
+#
+#     Args:
+#       adj_mat: A sparse matrix of size E x E whose rows sum to one.
+#       rel_dict: A sparse matrix of size E x E whose values are rel_ids between
+#             entities
+#       entity_names: A dictionary of entity and relation ids to their surface
+#             form names
+#
+#
+#     Returns:
+#         facts: A list of ((subj_id, subj_name), (obj_id, obj_name), (rel_id,
+#             rel_name), score)
+#     """
+#

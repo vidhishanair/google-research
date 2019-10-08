@@ -25,6 +25,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import random
 import numpy as np
 import tensorflow as tf
 from fat.fat_bert_nq.ppr.apr_algo import csr_personalized_pagerank
@@ -152,3 +153,44 @@ class ApproximatePageRank(object):
         unique_facts[(sub, obj)] = (rel, score)
     unique_facts = list(unique_facts.items())
     return unique_facts
+
+  def get_random_facts(self, entities, topk, alpha, seed_weighting=True):
+      """Get random subgraph
+
+      Args:
+        entities: A list of Wikidata entities
+        topk: Max entities to extract from PPR
+        alpha: Node probability for PPR
+        seed_weighting: Boolean for performing weighting seeds by freq in passage
+
+      Returns:
+        unique_facts: A list of unique random facts around the seeds.
+      """
+      ent_ids = list(self.entity_names['e'].keys())
+      extracted_ents = random.sample(ent_ids, 500)
+      freq_dict = {}
+      for i in extracted_ents:
+          freq_dict[i] = 1
+      extracted_scores = [1]*len(extracted_ents)
+      facts = csr_topk_fact_extractor(self.data.adj_mat_t_csr, self.data.rel_dict,
+                                      freq_dict, self.data.entity_names,
+                                      extracted_ents, extracted_scores)
+      if FLAGS.verbose_logging:
+          tf.logging.info('Extracted facts: ')
+          tf.logging.info(str(facts))
+
+          # Extract 1 unique fact per pair of entities (fact with highest score)
+          # Sort by scores
+      unique_facts = {}
+      for (sub, obj, rel, score) in facts:
+          fwd_dir = (sub, obj)
+          rev_dir = (obj, sub)
+          if fwd_dir in unique_facts and score > unique_facts[fwd_dir][1]:
+              unique_facts[fwd_dir] = (rel, score)
+          elif rev_dir in unique_facts and score > unique_facts[rev_dir][1]:
+              unique_facts[fwd_dir] = (rel, score)
+              del unique_facts[rev_dir]  # Remove existing entity pair
+          else:
+              unique_facts[(sub, obj)] = (rel, score)
+      unique_facts = list(unique_facts.items())
+      return unique_facts

@@ -100,6 +100,11 @@ flags.DEFINE_integer(
 
 flags.DEFINE_bool("create_pretrain_data", False, "Whether to create_pretraining_data.")
 
+flags.DEFINE_bool(
+    "use_random_fact_generator", False,
+    "Whether to retreive random facts "
+    "models and False for cased models.")
+
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
 flags.DEFINE_bool("do_predict", False, "Whether to run eval on the dev set.")
@@ -671,8 +676,12 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
   seed_entities = [x for x in sub_list if x != "None"]
   # Adding this check since empty seeds generate random facts
   if seed_entities:
-    unique_facts = apr_obj.get_facts(
-        seed_entities, topk=200, alpha=0.9, seed_weighting=True)
+    if FLAGS.use_random_fact_generator:
+        unique_facts = apr_obj.get_random_facts(
+            seed_entities, topk=200, alpha=0.9, seed_weighting=True)
+    else:
+        unique_facts = apr_obj.get_facts(
+            seed_entities, topk=200, alpha=0.9, seed_weighting=True)
 
     facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
     # tf.logging.info("Sorted facts: ")
