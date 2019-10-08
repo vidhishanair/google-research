@@ -166,7 +166,8 @@ class ApproximatePageRank(object):
       Returns:
         unique_facts: A list of unique random facts around the seeds.
       """
-      ent_ids = list(self.data.entity_names['e'].keys())
+      #ent_ids = list(self.data.entity_names['e'].keys())
+      ent_ids = [i for i in range(self.data.adj_mat_t_csr.shape[0])]
       extracted_ents = random.sample(ent_ids, 500)
       freq_dict = {}
       for i in extracted_ents:
