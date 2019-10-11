@@ -1222,6 +1222,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
           "start_logits": start_logits,
           "end_logits": end_logits,
           "answer_type_logits": answer_type_logits,
+          "input_ids": input_ids,
       }
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode, predictions=predictions, scaffold_fn=scaffold_fn)
@@ -1394,7 +1395,7 @@ def get_best_indexes(logits, n_best_size):
   return best_indexes
 
 
-def compute_predictions(example):
+def compute_predictions(example, tokenizer = None, pred_fp = None):
   """Converts an example into an NQEval object for evaluation."""
   predictions = []
   n_best_size = 10
@@ -1404,6 +1405,7 @@ def compute_predictions(example):
     if unique_id not in example.features:
       raise ValueError("No feature found with unique_id:", unique_id)
     token_map = example.features[unique_id]["token_map"].int64_list.value
+    input_ids = example.features[unique_id]["input_ids"].int64_list.value
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None
@@ -1430,7 +1432,7 @@ def compute_predictions(example):
 
         # Span logits minus the cls logits seems to be close to the best.
         score = summary.short_span_score - summary.cls_token_score
-        predictions.append((score, summary, start_span, end_span))
+        predictions.append((score, summary, start_span, end_span, input_ids))
     if summary is None:
       # Hacking a summary where the first token of the context is the pred span
       summary = ScoreSummary()
@@ -1450,7 +1452,7 @@ def compute_predictions(example):
       end_span = token_map[end_index] + 1
       # Span logits minus the cls logits seems to be close to the best.
       score = summary.short_span_score - summary.cls_token_score
-      predictions.append((score, summary, start_span, end_span))
+      predictions.append((score, summary, start_span, end_span, input_ids))
 
   # tf.logging.info("Predictions list len : %d", len(predictions))
   # tf.logging.info("Len of example results: %d", len(example.results.items()))
@@ -1466,10 +1468,10 @@ def compute_predictions(example):
     start_span = -1
     end_span = -1
     score = 0
-    predictions.append((score, summary, start_span, end_span))
+    predictions.append((score, summary, start_span, end_span, []))
   #else:
   #print(len(example.results.items()))
-  score, summary, start_span, end_span = sorted(
+  score, summary, start_span, end_span, input_ids = sorted(
       predictions, reverse=True, key=lambda tup: tup[0])[0]
   short_span = Span(start_span, end_span)
   long_span = Span(-1, -1)
@@ -1479,6 +1481,13 @@ def compute_predictions(example):
     if c["top_level"] and c["start_token"] <= start and c["end_token"] >= end:
       long_span = Span(c["start_token"], c["end_token"])
       break
+
+  input_ids = list(map(int, input_ids))
+  if len(input_ids) > 0:
+      input_text = tokenizer.convert_ids_to_tokens(input_ids)
+      input_text = (" ".join(input_text)).replace(" ##","")
+  else:
+      input_text = ""
 
   summary.predicted_label = {
       "example_id": example.example_id,
@@ -1496,13 +1505,45 @@ def compute_predictions(example):
           "end_byte": -1
       }],
       "short_answers_score": score,
-      "yes_no_answer": "NONE"
+      "yes_no_answer": "NONE",
+      "input_ids": input_ids,
+      "input_text": input_text,
   }
 
+  # if FLAGS.write_pred_analysis:
+  #     input_ids = map(int, input_ids)
+  #     question = []
+  #     text = []
+  #     facts = []
+  #     current='question'
+  #     for token in input_ids:
+  #         try:
+  #             word = tokenizer.convert_ids_to_tokens([token])[0]
+  #             if current == 'question':
+  #                 question.append(word)
+  #             elif current == 'text':
+  #                 text.append(word)
+  #             elif current == 'facts':
+  #                 facts.append(word)
+  #             else:
+  #                 print("Some exception in current word")
+  #                 print(current)
+  #             if word == '[SEP]' and current == 'question':
+  #                 current = 'text'
+  #             elif word == '[SEP]' and current == 'text':
+  #                 current = 'facts'
+  #             else:
+  #                 continue
+  #         except:
+  #             print('didnt tokenize')
+  #
+  #     pred_fp.write(" ".join(question).replace(" ##","")+"\t")
+  #     pred_fp.write(" ".join(text).replace(" ##", "")+"\t")
+  #     pred_fp.write(" ".join(facts).replace(" ##","")+"\n")
   return summary
 
 
-def compute_pred_dict(candidates_dict, dev_features, raw_results):
+def compute_pred_dict(candidates_dict, dev_features, raw_results, tokenizer=None, pred_fp=None):
   """Computes official answer key from raw logits."""
   sess = tf.Session()
   # raw_results_by_id = [
@@ -1546,7 +1587,7 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results):
   summary_dict = {}
   nq_pred_dict = {}
   for e in examples:
-    summary = compute_predictions(e)
+    summary = compute_predictions(e, tokenizer)
     summary_dict[e.example_id] = summary
     nq_pred_dict[e.example_id] = summary.predicted_label
     if len(nq_pred_dict) % 100 == 0:
@@ -1692,7 +1733,7 @@ def main(_):
     # eval_features = []
     print("Computing predictions")
     nq_pred_dict = compute_pred_dict(candidates_dict, eval_features,
-                                     [r._asdict() for r in all_results])
+                                     [r._asdict() for r in all_results], tokenizer, pred_fp=None)
     predictions_json = {"predictions": list(nq_pred_dict.values())}
     with tf.gfile.Open(FLAGS.output_prediction_file, "w") as f:
       json.dump(predictions_json, f, indent=4)
