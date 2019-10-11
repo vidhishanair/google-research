@@ -1432,7 +1432,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
 
         # Span logits minus the cls logits seems to be close to the best.
         score = summary.short_span_score - summary.cls_token_score
-        predictions.append((score, summary, start_span, end_span))
+        predictions.append((score, summary, start_span, end_span, input_ids))
     if summary is None:
       # Hacking a summary where the first token of the context is the pred span
       summary = ScoreSummary()
