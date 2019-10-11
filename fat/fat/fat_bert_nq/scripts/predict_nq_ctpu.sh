@@ -18,13 +18,13 @@ python3 -m fat.fat_bert_nq.run_nq \
     --is_training=False \
     --verbose_logging=False \
     --bert_config_file=$BERT_BASE_DIR/bert_config.json \
-    --init_checkpoint=$OUTPUT/model.ckpt-19000 \
+    --init_checkpoint=$OUTPUT/model.ckpt-12096 \
     --output_dir=$OUTPUT \
     --eval_data_path=$DATA/dev \
     --train_precomputed_file=$DATA/train/*.tf-record \
     --train_num_precomputed=203868 \
     --predict_file=$NQ_DATA/dev/*.jsonl.gz \
-    --output_prediction_file=$OUTPUT/predictions.json \
+    --output_prediction_file=$OUTPUT/predictions2.json \
     --do_lower_case=True \
     --max_seq_length=${SEQ_LEN} \
     --doc_stride=128 \
@@ -39,14 +39,16 @@ python3 -m fat.fat_bert_nq.run_nq \
     --use_tpu=True \
     --tpu_name=$TPU_NAME 
 
+cd ../../
+
 mkdir tmp
 
-gsutil cp $OUTPUT/predictions.json tmp/
+gsutil cp $OUTPUT/predictions2.json tmp/
 
-python -m natural_questions.nq_eval --logtostderr --gold_path=/home/vidhishabalachandran/datasets/v1.0/dev/nq-dev-0?.jsonl.gz --predictions_path=tmp/predictions.json > tmp/metrics.json
+python -m natural_questions.nq_eval --logtostderr --gold_path=/home/home/vbalacha/datasets/ent_linked_nq_new/dev/nq-dev-0???.jsonl.gz --predictions_path=tmp/predictions2.json --measure_entity_metrics=True --cache_gold_data --write_pred_analysis --prediction_analysis_path=tmp/pred_analysis.tsv > tmp/entity_metrics.json
 
-cat tmp/metrics.json
+cat tmp/entity_metrics.json
 
-gsutil cp tmp/metrics.json $OUTPUT/
+gsutil cp tmp/entity_metrics.json $OUTPUT/
 
 rm -rf tmp
