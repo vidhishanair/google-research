@@ -1587,7 +1587,7 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results, tokenizer=None
   summary_dict = {}
   nq_pred_dict = {}
   for e in examples:
-    summary = compute_predictions(e)
+    summary = compute_predictions(e, tokenizer)
     summary_dict[e.example_id] = summary
     nq_pred_dict[e.example_id] = summary.predicted_label
     if len(nq_pred_dict) % 100 == 0:
