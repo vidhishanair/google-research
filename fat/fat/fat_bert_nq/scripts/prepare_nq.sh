@@ -4,8 +4,8 @@ BERT_BASE_DIR="/remote/bones/user/vbalacha/pretrained_bert/wwm_uncased_L-24_H-10
 NQ_BASELINE_DIR="/remote/bones/user/vbalacha/bert-joint-baseline"
 APR_DIR="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/"
 SEQ_LEN=512
-INC_UNK=0.5
-OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_non_tokenized_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
+INC_UNK=1.0
+OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_random_facts_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
 
 
 mkdir -p $OUTPUT
@@ -33,6 +33,7 @@ do
           --output_data_dir=$OUTPUT \
           --pretrain_data_dir=$OUTPUT/pretrain \
           --create_pretrain_data=True \
+          --use_random_fact_generator=False \
           --apr_files_dir=$APR_DIR \
           --full_wiki=True \
           --vocab_file=$NQ_BASELINE_DIR/vocab-nq.txt \
@@ -40,7 +41,7 @@ do
           --use_entity_markers=False \
           --merge_eval=False \
           --max_seq_length=$SEQ_LEN \
-          --include_unknowns=$INC_UNK > log/non_tokenized_train_$i$j.log 2>&1 &
+          --include_unknowns=$INC_UNK > log/dev_$i$j.log 2>&1 &
     done
     wait
     echo "All Done for this iteration"
