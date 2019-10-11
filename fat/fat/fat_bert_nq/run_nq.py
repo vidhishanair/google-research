@@ -1482,7 +1482,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       long_span = Span(c["start_token"], c["end_token"])
       break
 
-  input_ids = map(int, input_ids)
+  input_ids = list(map(int, input_ids))
   if len(input_ids) > 0:
       input_text = tokenizer.convert_ids_to_tokens(input_ids)
       input_text = (" ".join(input_text)).replace(" ##","")
