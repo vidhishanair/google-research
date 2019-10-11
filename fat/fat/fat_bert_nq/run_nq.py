@@ -1483,8 +1483,11 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       break
 
   input_ids = map(int, input_ids)
-  input_text = tokenizer.convert_ids_to_tokens(input_ids)
-  input_text = (" ".join(input_text)).replace(" ##","")
+  if len(input_ids) > 0:
+      input_text = tokenizer.convert_ids_to_tokens(input_ids)
+      input_text = (" ".join(input_text)).replace(" ##","")
+  else:
+      input_text = ""
 
   summary.predicted_label = {
       "example_id": example.example_id,
