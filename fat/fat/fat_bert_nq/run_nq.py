@@ -110,6 +110,8 @@ flags.DEFINE_bool("do_train", False, "Whether to run training.")
 flags.DEFINE_bool("do_predict", False, "Whether to run eval on the dev set.")
 
 flags.DEFINE_bool("use_entity_markers", False, "Whether to add explicit entity seperators")
+flags.DEFINE_float("alpha", 0.9,
+                   "Alpha as restart prob for RWR")
 
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
@@ -680,10 +682,10 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
   if seed_entities:
     if FLAGS.use_random_fact_generator:
         unique_facts = apr_obj.get_random_facts(
-            seed_entities, topk=200, alpha=0.9, seed_weighting=True)
+            seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
     else:
         unique_facts = apr_obj.get_facts(
-            seed_entities, topk=200, alpha=0.9, seed_weighting=True)
+            seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
 
     facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
     # tf.logging.info("Sorted facts: ")
