@@ -108,11 +108,12 @@ if __name__ == '__main__':
         # Currently sequentially, can be parallelized later
         for task_id in range(0, max_tasks[mode]):
             for shard_id in range(0, max_shards[mode]):
-                if task_id == 0 and shard_id in range(0, 16):
-                    print("skipping finished job")
-                    continue
+                # if task_id == 0 and shard_id in range(0, 16):
+                #     print("skipping finished job")
+                #     continue
                 nq_data, entities = get_examples(FLAGS.nq_dir, mode, task_id, shard_id)
                 if nq_data is None:
+                    print("No examples here")
                     continue
                 print("Size of all entities: %d", len(entities))
                 two_hop_entities = apr.get_khop_entities(entities, 2)
@@ -120,5 +121,9 @@ if __name__ == '__main__':
                 csr_data = CsrData()
                 csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
                                                   decompose_ppv=FLAGS.decompose_ppv,
-                                                  files_dir=FLAGS.apr_files_dir,sub_entities=two_hop_entities, mode=mode, task_id=task_id, shard_id=shard_id)
+                                                  files_dir=FLAGS.apr_files_dir,
+                                                  sub_entities=two_hop_entities,
+                                                  mode=mode,
+                                                  task_id=task_id,
+                                                  shard_id=shard_id)
 
