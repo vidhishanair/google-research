@@ -9,25 +9,25 @@ ALPHA=0.75
 OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_alpha${ALPHA}_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
 
 
-mkdir -p $OUTPUT
-mkdir -p $OUTPUT/train
-mkdir -p $OUTPUT/dev
+#mkdir -p $OUTPUT
+#mkdir -p $OUTPUT/train
+#mkdir -p $OUTPUT/dev
 #mkdir -p $OUTPUT/pretrain
 #mkdir -p $OUTPUT/pretrain/train
 
-for j in {0..6}
-#for i in {0..4}
+#for j in {0..6}
+for i in {0..4}
 do
     #echo $j
-    for i in {0..49}
-    #for j in {0..16}
+    #for i in {0..49}
+    for j in {0..16}
     do
         echo  $i
         echo $j
         nohup python3 -m fat.fat_bert_nq.prepare_nq_data \
-          --is_training=True \
+          --is_training=False \
           --verbose_logging=False \
-          --split=train \
+          --split=dev \
           --task_id=$i \
           --shard_split_id=$j \
           --input_data_dir=/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/ \
@@ -43,7 +43,7 @@ do
           --merge_eval=False \
           --alpha=${ALPHA} \
           --max_seq_length=$SEQ_LEN \
-          --include_unknowns=$INC_UNK > log/dev_$i$j.log 2>&1 &
+          --include_unknowns=$INC_UNK > log/alphadev_$i$j.log 2>&1 &
     done
     wait
     echo "All Done for this iteration"
