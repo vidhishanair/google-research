@@ -39,6 +39,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
 flags.DEFINE_bool('full_wiki', True, '')
 flags.DEFINE_bool('decompose_ppv', False, '')
+flags.DEFINE_bool('downweight_incoming_degree', False, '')
 flags.DEFINE_integer('total_kb_entities', 188309,
                      'Total entities in processed sling KB')
 #188309 for sub graphs
@@ -232,7 +233,12 @@ class CsrData(object):
           shape=(num_entities, num_entities))
       if num_entities != 0:
           print("Normalizing")
-          adj_mat = normalize(adj_mat, 'l1', axis=1)
+          if FLAGS.downweight_incoming_degree:
+            adj_mat_col = normalize(adj_mat, 'l1', axis=1)
+            adj_mat_row = normalize(adj_mat, 'l1', axis=0)
+            adj_mat = adj_mat_col*adj_mat_row
+          else:
+            adj_mat = normalize(adj_mat, 'l1', axis=1)
 
     tf.logging.info('Saving all files')
     # FIX for Bad Magic Header bug
