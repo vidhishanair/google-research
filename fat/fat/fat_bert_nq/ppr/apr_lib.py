@@ -142,12 +142,12 @@ class ApproximatePageRank(object):
     # Sort by scores
     unique_facts = {}
     for (sub, obj, rel, score) in facts:
-      fwd_dir = (sub, obj)
-      rev_dir = (obj, sub)
-      # if sub[1] == obj[1]:
-      #     continue
-      # fwd_dir = (sub[1], obj[1])
-      # rev_dir = (obj[1], sub[1])
+      # fwd_dir = (sub, obj)
+      # rev_dir = (obj, sub)
+      if sub[1] == obj[1]:
+          continue
+      fwd_dir = (sub[1], obj[1])
+      rev_dir = (obj[1], sub[1])
       if fwd_dir in unique_facts and score > unique_facts[fwd_dir][1]:
         unique_facts[fwd_dir] = (rel, score)
       elif rev_dir in unique_facts and score > unique_facts[rev_dir][1]:
