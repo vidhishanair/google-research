@@ -688,8 +688,11 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
             seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
 
     facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
-    # tf.logging.info("Sorted facts: ")
-    # tf.logging.info(str(facts))
+    if FLAGS.verbose_logging:
+        print("Sorted facts: ")
+        print(str(facts[0:50]))
+        tf.logging.info("Sorted facts: ")
+        tf.logging.info(str(facts))
     if FLAGS.use_entity_markers:
         nl_facts = " . ".join([
             "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])

@@ -41,6 +41,15 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/', 'Read nq data to extract entities')
+flags.DEFINE_integer("shard_split_id", None,
+                             "Train and dev shard to read from and write to.")
+
+flags.DEFINE_string(
+            "split", "train",
+                "Train and dev split to read from and write to. Accepted values: ['train', 'dev', 'test']"
+                )
+#flags.DEFINE_integer("task_id", 0,
+#                             "Train and dev shard to read from and write to.")
 #flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
 #flags.DEFINE_bool('full_wiki', True, '')
 #flags.DEFINE_bool('decompose_ppv', False, '')
@@ -103,11 +112,11 @@ if __name__ == '__main__':
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
     apr = ApproximatePageRank()
-    for mode in ["dev"]:
+    for mode in [FLAGS.split]:
         # Parse all shards in each mode
         # Currently sequentially, can be parallelized later
-        for task_id in range(0, max_tasks[mode]):
-            for shard_id in range(0, max_shards[mode]):
+        for task_id in [FLAGS.task_id]: #range(0, max_tasks[mode]):
+            for shard_id in [FLAGS.shard_split_id]: #range(0, max_shards[mode]):
                 # if task_id == 0 and shard_id in range(0, 16):
                 #     print("skipping finished job")
                 #     continue

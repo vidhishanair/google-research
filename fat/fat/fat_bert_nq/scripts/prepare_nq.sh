@@ -4,9 +4,9 @@ BERT_BASE_DIR="/remote/bones/user/vbalacha/pretrained_bert/wwm_uncased_L-24_H-10
 NQ_BASELINE_DIR="/remote/bones/user/vbalacha/bert-joint-baseline"
 APR_DIR="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/"
 SEQ_LEN=512
-INC_UNK=0.02
-ALPHA=0.75
-OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_alpha${ALPHA}_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
+INC_UNK=1.0
+ALPHA=0.9
+OUTPUT="/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/generated_files/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${INC_UNK}"
 
 
 #mkdir -p $OUTPUT
