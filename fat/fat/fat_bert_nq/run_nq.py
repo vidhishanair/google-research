@@ -693,8 +693,10 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
   if FLAGS.use_question_entities:
       question_entities = set()
       for start_idx in question_entity_map.keys():
-          for sub_span in question_entity_map['start_idx']:
+          for sub_span in question_entity_map[start_idx]:
               question_entities.add(sub_span[1])
+      if FLAGS.verbose_logging:
+          print('Question seed entities: '+str(list(question_entities)))
       seed_entities.extend(list(question_entities))
 
   # Adding this check since empty seeds generate random facts
@@ -856,7 +858,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
 
     aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                 example.entity_list, apr_obj,
-                                                tokenizer, example.questions_entity_map)
+                                                tokenizer, example.question_entity_map[-1])
     max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
     for (index, token) in enumerate(aligned_facts_subtokens):
       if index >= max_tokens_for_current_facts:
