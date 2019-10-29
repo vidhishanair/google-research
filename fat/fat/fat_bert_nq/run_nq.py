@@ -105,6 +105,11 @@ flags.DEFINE_bool(
     "Whether to retreive random facts "
     "models and False for cased models.")
 
+flags.DEFINE_bool(
+    "use_question_entities", False,
+    "Whether to use question entities as seeds "
+    "models and False for cased models.")
+
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
 flags.DEFINE_bool("do_predict", False, "Whether to run eval on the dev set.")
@@ -219,6 +224,7 @@ class NqExample(object):
                qas_id,
                questions,
                doc_tokens,
+               questions_entity_map=None,
                doc_tokens_map=None,
                entity_list=None,
                answer=None,
@@ -230,6 +236,7 @@ class NqExample(object):
     self.doc_tokens = doc_tokens
     self.doc_tokens_map = doc_tokens_map
     self.entity_list = entity_list
+    self.question_entity_map = questions_entity_map
     self.answer = answer
     self.start_position = start_position
     self.end_position = end_position
@@ -396,7 +403,7 @@ def create_example_from_jsonl(line):
 
   # annotated_idx: index of the first annotated context, -1 if null.
   # annotated_sa: short answer start and end char offsets, (-1, -1) if null.
-  question = {"input_text": e["question_text"]}
+  question = {"input_text": e["question_text"], "entity_map": e["question_entity_map"]}
   answer = {
       "candidate_id": annotated_idx,
       "span_text": "",
@@ -551,9 +558,11 @@ def read_nq_entry(entry, is_training):
     char_to_word_offset.append(len(doc_tokens) - 1)
 
   questions = []
+  questions_emap = []
   for i, question in enumerate(entry["questions"]):
     qas_id = "{}".format(contexts_id)
     question_text = question["input_text"]
+    question_entity_map = question["entity_map"]
     start_position = None
     end_position = None
     answer = None
@@ -582,10 +591,12 @@ def read_nq_entry(entry, is_training):
         continue
 
     questions.append(question_text)
+    questions_emap.append(question_entity_map)
     example = NqExample(
         example_id=int(contexts_id),
         qas_id=qas_id,
         questions=questions[:],
+        questions_entity_map=questions_emap[:],
         doc_tokens=doc_tokens,
         doc_tokens_map=entry.get("contexts_map", None),
         entity_list=entry["context_entity_list"],
@@ -653,7 +664,7 @@ def check_is_max_context(doc_spans, cur_span_index, position):
 
 
 def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
-                      tokenizer):
+                      tokenizer, question_entity_map=None):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -678,6 +689,14 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 
   sub_list = entity_list[start_index:end_index + 1]
   seed_entities = [x for x in sub_list if x != "None"]
+
+  if FLAGS.use_question_entities:
+      question_entities = set()
+      for start_idx in question_entity_map.keys():
+          for sub_span in question_entity_map['start_idx']:
+              question_entities.add(sub_span[1])
+      seed_entities.extend(list(question_entities))
+
   # Adding this check since empty seeds generate random facts
   if seed_entities:
     if FLAGS.use_random_fact_generator:
@@ -837,7 +856,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
 
     aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                 example.entity_list, apr_obj,
-                                                tokenizer)
+                                                tokenizer, example.questions_entity_map)
     max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
     for (index, token) in enumerate(aligned_facts_subtokens):
       if index >= max_tokens_for_current_facts:
