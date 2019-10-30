@@ -1108,7 +1108,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         # tokens are attended to.
         #input_mask = [1] * len(input_ids) Since we now can have 0/PAD in between due to masking non-entity tokens
 
-        input_mask = (input_ids != 0).long()
+        input_mask = [0 if item == 0 else 1 for item in input_ids]
 
         # Zero-pad up to the sequence length.
         padding = [0] * (FLAGS.max_seq_length - len(input_ids))
@@ -1170,11 +1170,11 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             answer_text=answer_text,
             answer_type=answer_type
         )  # Added facts to is max context and token to orig?
-        print(input_ids)
         features.append(feature)
 
     if valid_count == 0:
-        print('Example has no valid instances.')
+        #print('Example has no valid instances.')
+        pass
     return features
 
 
