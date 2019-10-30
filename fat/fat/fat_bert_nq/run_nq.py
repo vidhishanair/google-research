@@ -109,6 +109,10 @@ flags.DEFINE_bool(
     "use_question_entities", False,
     "Whether to use question entities as seeds "
     "models and False for cased models.")
+flags.DEFINE_bool(
+    "mask_non_entity_in_text", False,
+    "Whether to mask non entity tokens "
+    "models and False for cased models.")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -743,209 +747,435 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 #tp = open('dev_context_text.txt', 'a')
 #tfp = open('dev_context_text_facts.txt', 'a')
 
+# def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file=None):
+#   """Converts a single NqExample into a list of InputFeatures."""
+#   tok_to_orig_index = []
+#   tok_to_textmap_index = []
+#   orig_to_tok_index = []
+#   all_doc_tokens = []
+#   features = []
+#   extended_entity_list = []
+#   for (i, token) in enumerate(example.doc_tokens):
+#     orig_to_tok_index.append(len(all_doc_tokens))
+#     sub_tokens = tokenize(tokenizer, token)
+#     tok_to_textmap_index.extend([i] * len(sub_tokens))
+#     extended_entity_list.extend([example.entity_list[i]] * len(sub_tokens))
+#     tok_to_orig_index.extend([i] * len(sub_tokens))
+#     all_doc_tokens.extend(sub_tokens)
+#
+#   # `tok_to_orig_index` maps wordpiece indices to indices of whitespace
+#   # tokenized word tokens in the contexts. The word tokens might themselves
+#   # correspond to word tokens in a larger document, with the mapping given
+#   # by `doc_tokens_map`.
+#   if example.doc_tokens_map:
+#     tok_to_orig_index = [
+#         example.doc_tokens_map[index] for index in tok_to_orig_index
+#     ]
+#
+#   # QUERY
+#   query_tokens = []
+#   query_tokens.append("[Q]")
+#   query_tokens.extend(tokenize(tokenizer, example.questions[-1]))
+#   if len(query_tokens) > FLAGS.max_query_length:
+#     query_tokens = query_tokens[-FLAGS.max_query_length:]
+#
+#   # ANSWER
+#   tok_start_position = 0
+#   tok_end_position = 0
+#   if is_training:
+#     tok_start_position = orig_to_tok_index[example.start_position]
+#     if example.end_position < len(example.doc_tokens) - 1:
+#       tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
+#     else:
+#       tok_end_position = len(all_doc_tokens) - 1
+#
+#   # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
+#   max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
+#   max_tokens_for_para = int(max_tokens_for_doc / 2)
+#   #max_tokens_for_para = int(max_tokens_for_doc)
+#
+#   # max_tokens_for_facts = max_tokens_for_doc - max_tokens_for_para
+#
+#   # We can have documents that are longer than the maximum sequence length.
+#   # To deal with this we do a sliding window approach, where we take chunks
+#   # of up to our max length with a stride of `doc_stride`.
+#   _DocSpan = collections.namedtuple(  # pylint: disable=invalid-name
+#       "DocSpan", ["start", "length"])
+#   doc_spans = []
+#   start_offset = 0
+#   while start_offset < len(all_doc_tokens):
+#     length = len(all_doc_tokens) - start_offset  # remaining_len
+#     length = min(length, max_tokens_for_para)
+#     doc_spans.append(_DocSpan(start=start_offset, length=length))
+#     if start_offset + length == len(all_doc_tokens):
+#       break
+#     start_offset += min(length, FLAGS.doc_stride)
+#
+#   for (doc_span_index, doc_span) in enumerate(doc_spans):
+#     # tf.logging.info("Processing Instance")
+#
+#     if is_training:
+#       doc_start = doc_span.start
+#       doc_end = doc_span.start + doc_span.length - 1
+#       # For training, if our document chunk does not contain an annotation
+#       # we throw it out, since there is nothing to predict.
+#       contains_an_annotation = (
+#           tok_start_position >= doc_start and tok_end_position <= doc_end)
+#       if ((not contains_an_annotation) or
+#           example.answer.type == AnswerType.UNKNOWN):
+#         # If an example has unknown answer type or does not contain the answer
+#         # span, then we only include it with probability --include_unknowns.
+#         # When we include an example with unknown answer type, we set the first
+#         # token of the passage to be the annotated short span.
+#         if (FLAGS.include_unknowns < 0 or
+#             random.random() > FLAGS.include_unknowns):
+#           continue
+#     # tf.logging.info("Processing Instance")
+#     tokens = []
+#     token_to_orig_map = {}
+#     token_is_max_context = {}
+#     segment_ids = []
+#     tokens.append("[CLS]")
+#     segment_ids.append(0)
+#     tokens.extend(query_tokens)
+#     segment_ids.extend([0] * len(query_tokens))
+#     tokens.append("[SEP]")
+#     segment_ids.append(0)
+#
+#     text_tokens = []
+#     fact_tokens = []
+#     for i in range(doc_span.length):
+#       split_token_index = doc_span.start + i
+#       token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
+#
+#       is_max_context = check_is_max_context(doc_spans, doc_span_index,
+#                                             split_token_index)
+#       token_is_max_context[len(tokens)] = is_max_context
+#       tokens.append(all_doc_tokens[split_token_index])
+#       text_tokens.append(all_doc_tokens[split_token_index])
+#       segment_ids.append(1)
+#     tokens.append("[SEP]")
+#     segment_ids.append(1)
+#
+#     if FLAGS.create_pretrain_data:
+#         pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
+#
+#     aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
+#                                                 example.entity_list, apr_obj,
+#                                                 tokenizer, example.question_entity_map[-1])
+#     max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
+#     for (index, token) in enumerate(aligned_facts_subtokens):
+#       if index >= max_tokens_for_current_facts:
+#         break
+#       token_to_orig_map[len(tokens)] = -1  # check if this makes sense
+#       tokens.append(token)
+#       fact_tokens.append(token)
+#       segment_ids.append(1)
+#
+#     tokens.append("[SEP]")
+#     segment_ids.append(1)
+#
+#     assert len(tokens) == len(segment_ids)
+#
+#     if FLAGS.create_pretrain_data:
+#         pretrain_file.write(" ".join(fact_tokens).replace(" ##", "")+"\n\n")
+#
+#     input_ids = tokenizer.convert_tokens_to_ids(tokens)
+#
+#     # The mask has 1 for real tokens and 0 for padding tokens. Only real
+#     # tokens are attended to.
+#     input_mask = [1] * len(input_ids)
+#
+#     # Zero-pad up to the sequence length.
+#     padding = [0] * (FLAGS.max_seq_length - len(input_ids))
+#     input_ids.extend(padding)
+#     input_mask.extend(padding)
+#     segment_ids.extend(padding)
+#     # tf.logging.info('Len input_ids : %d', len(input_ids))
+#     # tf.logging.info('Max Seq Len : %d', FLAGS.max_seq_length)
+#     # tf.logging.info('Max tokens facts : %d', max_tokens_for_current_facts)
+#     # tf.logging.info('Max tokens para : %d', max_tokens_for_para)
+#     assert len(input_ids) == FLAGS.max_seq_length
+#     assert len(input_mask) == FLAGS.max_seq_length
+#     assert len(segment_ids) == FLAGS.max_seq_length
+#
+#     start_position = None
+#     end_position = None
+#     answer_type = None
+#     answer_text = ""
+#     if is_training:
+#       doc_start = doc_span.start
+#       doc_end = doc_span.start + doc_span.length - 1
+#       # For training, if our document chunk does not contain an annotation
+#       # we throw it out, since there is nothing to predict.
+#       contains_an_annotation = (
+#           tok_start_position >= doc_start and tok_end_position <= doc_end)
+#       if ((not contains_an_annotation) or
+#           example.answer.type == AnswerType.UNKNOWN):
+#         # If an example has unknown answer type or does not contain the answer
+#         # span, then we only include it with probability --include_unknowns.
+#         # When we include an example with unknown answer type, we set the first
+#         # token of the passage to be the annotated short span.
+#
+#         # if (FLAGS.include_unknowns < 0 or
+#         #     random.random() > FLAGS.include_unknowns):
+#         #   continue
+#         start_position = 0
+#         end_position = 0
+#         answer_type = AnswerType.UNKNOWN
+#       else:
+#         doc_offset = len(query_tokens) + 2
+#         start_position = tok_start_position - doc_start + doc_offset
+#         end_position = tok_end_position - doc_start + doc_offset
+#         answer_type = example.answer.type
+#
+#       answer_text = " ".join(tokens[start_position:(end_position + 1)])
+#
+#     feature = InputFeatures(
+#         unique_id=-1,
+#         example_index=-1,
+#         doc_span_index=doc_span_index,
+#         tokens=tokens,
+#         token_to_orig_map=token_to_orig_map,
+#         token_is_max_context=token_is_max_context,
+#         input_ids=input_ids,
+#         input_mask=input_mask,
+#         segment_ids=segment_ids,
+#         start_position=start_position,
+#         end_position=end_position,
+#         answer_text=answer_text,
+#         answer_type=answer_type
+#     )  # Added facts to is max context and token to orig?
+#
+#     features.append(feature)
+#
+#   return features
+
 def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file=None):
-  """Converts a single NqExample into a list of InputFeatures."""
-  tok_to_orig_index = []
-  tok_to_textmap_index = []
-  orig_to_tok_index = []
-  all_doc_tokens = []
-  features = []
-  extended_entity_list = []
-  for (i, token) in enumerate(example.doc_tokens):
-    orig_to_tok_index.append(len(all_doc_tokens))
-    sub_tokens = tokenize(tokenizer, token)
-    tok_to_textmap_index.extend([i] * len(sub_tokens))
-    extended_entity_list.extend([example.entity_list[i]] * len(sub_tokens))
-    tok_to_orig_index.extend([i] * len(sub_tokens))
-    all_doc_tokens.extend(sub_tokens)
+    """Converts a single NqExample into a list of InputFeatures."""
+    tok_to_orig_index = []
+    tok_to_textmap_index = []
+    orig_to_tok_index = []
+    all_doc_tokens = []
+    features = []
+    extended_entity_list = []
+    for (i, token) in enumerate(example.doc_tokens):
+        orig_to_tok_index.append(len(all_doc_tokens))
+        sub_tokens = tokenize(tokenizer, token)
+        tok_to_textmap_index.extend([i] * len(sub_tokens))
+        extended_entity_list.extend([example.entity_list[i]] * len(sub_tokens))
+        tok_to_orig_index.extend([i] * len(sub_tokens))
+        all_doc_tokens.extend(sub_tokens)
 
-  # `tok_to_orig_index` maps wordpiece indices to indices of whitespace
-  # tokenized word tokens in the contexts. The word tokens might themselves
-  # correspond to word tokens in a larger document, with the mapping given
-  # by `doc_tokens_map`.
-  if example.doc_tokens_map:
-    tok_to_orig_index = [
-        example.doc_tokens_map[index] for index in tok_to_orig_index
-    ]
+    # `tok_to_orig_index` maps wordpiece indices to indices of whitespace
+    # tokenized word tokens in the contexts. The word tokens might themselves
+    # correspond to word tokens in a larger document, with the mapping given
+    # by `doc_tokens_map`.
+    if example.doc_tokens_map:
+        tok_to_orig_index = [
+            example.doc_tokens_map[index] for index in tok_to_orig_index
+        ]
 
-  # QUERY
-  query_tokens = []
-  query_tokens.append("[Q]")
-  query_tokens.extend(tokenize(tokenizer, example.questions[-1]))
-  if len(query_tokens) > FLAGS.max_query_length:
-    query_tokens = query_tokens[-FLAGS.max_query_length:]
+    # QUERY
+    query_tokens = []
+    query_tokens.append("[Q]")
+    query_tokens.extend(tokenize(tokenizer, example.questions[-1]))
+    if len(query_tokens) > FLAGS.max_query_length:
+        query_tokens = query_tokens[-FLAGS.max_query_length:]
 
-  # ANSWER
-  tok_start_position = 0
-  tok_end_position = 0
-  if is_training:
-    tok_start_position = orig_to_tok_index[example.start_position]
-    if example.end_position < len(example.doc_tokens) - 1:
-      tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
-    else:
-      tok_end_position = len(all_doc_tokens) - 1
-
-  # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
-  max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
-  max_tokens_for_para = int(max_tokens_for_doc / 2)
-  #max_tokens_for_para = int(max_tokens_for_doc)
-
-  # max_tokens_for_facts = max_tokens_for_doc - max_tokens_for_para
-
-  # We can have documents that are longer than the maximum sequence length.
-  # To deal with this we do a sliding window approach, where we take chunks
-  # of up to our max length with a stride of `doc_stride`.
-  _DocSpan = collections.namedtuple(  # pylint: disable=invalid-name
-      "DocSpan", ["start", "length"])
-  doc_spans = []
-  start_offset = 0
-  while start_offset < len(all_doc_tokens):
-    length = len(all_doc_tokens) - start_offset  # remaining_len
-    length = min(length, max_tokens_for_para)
-    doc_spans.append(_DocSpan(start=start_offset, length=length))
-    if start_offset + length == len(all_doc_tokens):
-      break
-    start_offset += min(length, FLAGS.doc_stride)
-
-  for (doc_span_index, doc_span) in enumerate(doc_spans):
-    # tf.logging.info("Processing Instance")
-
+    # ANSWER
+    tok_start_position = 0
+    tok_end_position = 0
     if is_training:
-      doc_start = doc_span.start
-      doc_end = doc_span.start + doc_span.length - 1
-      # For training, if our document chunk does not contain an annotation
-      # we throw it out, since there is nothing to predict.
-      contains_an_annotation = (
-          tok_start_position >= doc_start and tok_end_position <= doc_end)
-      if ((not contains_an_annotation) or
-          example.answer.type == AnswerType.UNKNOWN):
-        # If an example has unknown answer type or does not contain the answer
-        # span, then we only include it with probability --include_unknowns.
-        # When we include an example with unknown answer type, we set the first
-        # token of the passage to be the annotated short span.
-        if (FLAGS.include_unknowns < 0 or
-            random.random() > FLAGS.include_unknowns):
-          continue
-    # tf.logging.info("Processing Instance")
-    tokens = []
-    token_to_orig_map = {}
-    token_is_max_context = {}
-    segment_ids = []
-    tokens.append("[CLS]")
-    segment_ids.append(0)
-    tokens.extend(query_tokens)
-    segment_ids.extend([0] * len(query_tokens))
-    tokens.append("[SEP]")
-    segment_ids.append(0)
+        tok_start_position = orig_to_tok_index[example.start_position]
+        if example.end_position < len(example.doc_tokens) - 1:
+            tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
+        else:
+            tok_end_position = len(all_doc_tokens) - 1
 
-    text_tokens = []
-    fact_tokens = []
-    for i in range(doc_span.length):
-      split_token_index = doc_span.start + i
-      token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
+    # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
+    max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
+    max_tokens_for_para = int(max_tokens_for_doc / 2)
+    #max_tokens_for_para = int(max_tokens_for_doc)
 
-      is_max_context = check_is_max_context(doc_spans, doc_span_index,
-                                            split_token_index)
-      token_is_max_context[len(tokens)] = is_max_context
-      tokens.append(all_doc_tokens[split_token_index])
-      text_tokens.append(all_doc_tokens[split_token_index])
-      segment_ids.append(1)
-    tokens.append("[SEP]")
-    segment_ids.append(1)
+    # max_tokens_for_facts = max_tokens_for_doc - max_tokens_for_para
 
-    if FLAGS.create_pretrain_data:
-        pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
+    # We can have documents that are longer than the maximum sequence length.
+    # To deal with this we do a sliding window approach, where we take chunks
+    # of up to our max length with a stride of `doc_stride`.
+    _DocSpan = collections.namedtuple(  # pylint: disable=invalid-name
+        "DocSpan", ["start", "length"])
+    doc_spans = []
+    start_offset = 0
+    while start_offset < len(all_doc_tokens):
+        length = len(all_doc_tokens) - start_offset  # remaining_len
+        length = min(length, max_tokens_for_para)
+        doc_spans.append(_DocSpan(start=start_offset, length=length))
+        if start_offset + length == len(all_doc_tokens):
+            break
+        start_offset += min(length, FLAGS.doc_stride)
 
-    aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
-                                                example.entity_list, apr_obj,
-                                                tokenizer, example.question_entity_map[-1])
-    max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
-    for (index, token) in enumerate(aligned_facts_subtokens):
-      if index >= max_tokens_for_current_facts:
-        break
-      token_to_orig_map[len(tokens)] = -1  # check if this makes sense
-      tokens.append(token)
-      fact_tokens.append(token)
-      segment_ids.append(1)
+    valid_count = 0
+    for (doc_span_index, doc_span) in enumerate(doc_spans):
+        # tf.logging.info("Processing Instance")
 
-    tokens.append("[SEP]")
-    segment_ids.append(1)
-    
-    assert len(tokens) == len(segment_ids)
+        contains_an_annotation = False
+        if is_training:
+            doc_start = doc_span.start
+            doc_end = doc_span.start + doc_span.length - 1
+            # For training, if our document chunk does not contain an annotation
+            # we throw it out, since there is nothing to predict.
+            contains_an_annotation = (
+                    tok_start_position >= doc_start and tok_end_position <= doc_end)
+            if ((not contains_an_annotation) or
+                    example.answer.type == AnswerType.UNKNOWN):
+                # If an example has unknown answer type or does not contain the answer
+                # span, then we only include it with probability --include_unknowns.
+                # When we include an example with unknown answer type, we set the first
+                # token of the passage to be the annotated short span.
+                if (FLAGS.include_unknowns < 0 or
+                        random.random() > FLAGS.include_unknowns):
+                    continue
+        # tf.logging.info("Processing Instance")
+        tokens = []
+        token_to_orig_map = {}
+        token_is_max_context = {}
+        segment_ids = []
+        tokens.append("[CLS]")
+        segment_ids.append(0)
+        tokens.extend(query_tokens)
+        segment_ids.extend([0] * len(query_tokens))
+        tokens.append("[SEP]")
+        segment_ids.append(0)
 
-    if FLAGS.create_pretrain_data:
-        pretrain_file.write(" ".join(fact_tokens).replace(" ##", "")+"\n\n")
+        text_tokens = []
+        fact_tokens = []
+        answer_version = []
+        for i in range(doc_span.length):
+            split_token_index = doc_span.start + i
+            token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
 
-    input_ids = tokenizer.convert_tokens_to_ids(tokens)
+            textmap_idx = tok_to_textmap_index[split_token_index]
+            e_val = example.entity_list[textmap_idx]
 
-    # The mask has 1 for real tokens and 0 for padding tokens. Only real
-    # tokens are attended to.
-    input_mask = [1] * len(input_ids)
+            is_max_context = check_is_max_context(doc_spans, doc_span_index,
+                                                  split_token_index)
+            token_is_max_context[len(tokens)] = is_max_context
+            if FLAGS.mask_non_entity_in_text and e_val == 'None':
+                tokens.append('[PAD]')
+                text_tokens.append('[PAD]')
+            else:
+                tokens.append(all_doc_tokens[split_token_index])
+                text_tokens.append(all_doc_tokens[split_token_index])
 
-    # Zero-pad up to the sequence length.
-    padding = [0] * (FLAGS.max_seq_length - len(input_ids))
-    input_ids.extend(padding)
-    input_mask.extend(padding)
-    segment_ids.extend(padding)
-    # tf.logging.info('Len input_ids : %d', len(input_ids))
-    # tf.logging.info('Max Seq Len : %d', FLAGS.max_seq_length)
-    # tf.logging.info('Max tokens facts : %d', max_tokens_for_current_facts)
-    # tf.logging.info('Max tokens para : %d', max_tokens_for_para)
-    assert len(input_ids) == FLAGS.max_seq_length
-    assert len(input_mask) == FLAGS.max_seq_length
-    assert len(segment_ids) == FLAGS.max_seq_length
+            if FLAGS.mask_non_entity_in_text :
+                if is_training and contains_an_annotation and (split_token_index>=tok_start_position and split_token_index<=tok_end_position):
+                    answer_version.append(tokens[-1])
+            segment_ids.append(1)
+        tokens.append("[SEP]")
+        segment_ids.append(1)
 
-    start_position = None
-    end_position = None
-    answer_type = None
-    answer_text = ""
-    if is_training:
-      doc_start = doc_span.start
-      doc_end = doc_span.start + doc_span.length - 1
-      # For training, if our document chunk does not contain an annotation
-      # we throw it out, since there is nothing to predict.
-      contains_an_annotation = (
-          tok_start_position >= doc_start and tok_end_position <= doc_end)
-      if ((not contains_an_annotation) or
-          example.answer.type == AnswerType.UNKNOWN):
-        # If an example has unknown answer type or does not contain the answer
-        # span, then we only include it with probability --include_unknowns.
-        # When we include an example with unknown answer type, we set the first
-        # token of the passage to be the annotated short span.
+        if '[PAD]' in answer_version:
+            continue
+        valid_count += 1
 
-        # if (FLAGS.include_unknowns < 0 or
-        #     random.random() > FLAGS.include_unknowns):
-        #   continue
-        start_position = 0
-        end_position = 0
-        answer_type = AnswerType.UNKNOWN
-      else:
-        doc_offset = len(query_tokens) + 2
-        start_position = tok_start_position - doc_start + doc_offset
-        end_position = tok_end_position - doc_start + doc_offset
-        answer_type = example.answer.type
+        if FLAGS.create_pretrain_data:
+            pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
 
-      answer_text = " ".join(tokens[start_position:(end_position + 1)])
+        aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
+                                                    example.entity_list, apr_obj,
+                                                    tokenizer, example.question_entity_map[-1])
+        max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
+        for (index, token) in enumerate(aligned_facts_subtokens):
+            if index >= max_tokens_for_current_facts:
+                break
+            token_to_orig_map[len(tokens)] = -1  # check if this makes sense
+            tokens.append(token)
+            fact_tokens.append(token)
+            segment_ids.append(1)
 
-    feature = InputFeatures(
-        unique_id=-1,
-        example_index=-1,
-        doc_span_index=doc_span_index,
-        tokens=tokens,
-        token_to_orig_map=token_to_orig_map,
-        token_is_max_context=token_is_max_context,
-        input_ids=input_ids,
-        input_mask=input_mask,
-        segment_ids=segment_ids,
-        start_position=start_position,
-        end_position=end_position,
-        answer_text=answer_text,
-        answer_type=answer_type
-    )  # Added facts to is max context and token to orig?
+        tokens.append("[SEP]")
+        segment_ids.append(1)
 
-    features.append(feature)
+        assert len(tokens) == len(segment_ids)
 
-  return features
+        if FLAGS.create_pretrain_data:
+            pretrain_file.write(" ".join(fact_tokens).replace(" ##", "")+"\n\n")
+
+        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+
+        # The mask has 1 for real tokens and 0 for padding tokens. Only real
+        # tokens are attended to.
+        #input_mask = [1] * len(input_ids) Since we now can have 0/PAD in between due to masking non-entity tokens
+
+        input_mask = (input_ids != 0).long()
+
+        # Zero-pad up to the sequence length.
+        padding = [0] * (FLAGS.max_seq_length - len(input_ids))
+        input_ids.extend(padding)
+        input_mask.extend(padding)
+        segment_ids.extend(padding)
+        # tf.logging.info('Len input_ids : %d', len(input_ids))
+        # tf.logging.info('Max Seq Len : %d', FLAGS.max_seq_length)
+        # tf.logging.info('Max tokens facts : %d', max_tokens_for_current_facts)
+        # tf.logging.info('Max tokens para : %d', max_tokens_for_para)
+        assert len(input_ids) == FLAGS.max_seq_length
+        assert len(input_mask) == FLAGS.max_seq_length
+        assert len(segment_ids) == FLAGS.max_seq_length
+
+        start_position = None
+        end_position = None
+        answer_type = None
+        answer_text = ""
+        if is_training:
+            doc_start = doc_span.start
+            doc_end = doc_span.start + doc_span.length - 1
+            # For training, if our document chunk does not contain an annotation
+            # we throw it out, since there is nothing to predict.
+            contains_an_annotation = (
+                    tok_start_position >= doc_start and tok_end_position <= doc_end)
+            if ((not contains_an_annotation) or
+                    example.answer.type == AnswerType.UNKNOWN):
+                # If an example has unknown answer type or does not contain the answer
+                # span, then we only include it with probability --include_unknowns.
+                # When we include an example with unknown answer type, we set the first
+                # token of the passage to be the annotated short span.
+
+                # if (FLAGS.include_unknowns < 0 or
+                #     random.random() > FLAGS.include_unknowns):
+                #   continue
+                start_position = 0
+                end_position = 0
+                answer_type = AnswerType.UNKNOWN
+            else:
+                doc_offset = len(query_tokens) + 2
+                start_position = tok_start_position - doc_start + doc_offset
+                end_position = tok_end_position - doc_start + doc_offset
+                answer_type = example.answer.type
+
+            answer_text = " ".join(tokens[start_position:(end_position + 1)])
+
+        feature = InputFeatures(
+            unique_id=-1,
+            example_index=-1,
+            doc_span_index=doc_span_index,
+            tokens=tokens,
+            token_to_orig_map=token_to_orig_map,
+            token_is_max_context=token_is_max_context,
+            input_ids=input_ids,
+            input_mask=input_mask,
+            segment_ids=segment_ids,
+            start_position=start_position,
+            end_position=end_position,
+            answer_text=answer_text,
+            answer_type=answer_type
+        )  # Added facts to is max context and token to orig?
+        print(input_ids)
+        features.append(feature)
+
+    if valid_count == 0:
+        print('Example has no valid instances.')
+    return features
 
 
 # A special token in NQ is made of non-space chars enclosed in square brackets.

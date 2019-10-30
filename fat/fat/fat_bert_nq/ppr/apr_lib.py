@@ -50,6 +50,14 @@ class ApproximatePageRank(object):
     self.data.load_csr_data(
         full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir,
         mode=mode, task_id=task_id, shard_id=shard_id)
+    self.high_freq_relations = {'P31': 'instance of',
+                                'P17': 'country',
+                                'P131': 'located in the administrative territorial entity',
+                                'P106': 'occupation',
+                                'P21': 'sex or gender',
+                                'P735': 'given name',
+                                'P27': 'country of citizenship',
+                                'P19': 'place of birth'}
 
   def get_khop_entities(self, seeds, k_hop):
     print("id2ent size: %d", len(self.data.id2ent))
