@@ -380,13 +380,13 @@ def get_candidate_entity_map(e, idx, token_map):
       # Only the first token has entity_id
       entity_list[start_token] = value[0][
           1]
-      # for item in value:
-      #   end_token = int(item[0])
-      #   entity = item[1]
-      #   if end_token >= len(token_map): # same temp fix
-      #     continue
-      #   entity_list[
-      #      start_token:end_token] = [entity]*(end_token-start_token) #fix
+      for item in value:
+        end_token = int(item[0])
+        entity = item[1]
+        if end_token >= len(token_map): # same temp fix
+          continue
+        entity_list[
+           start_token:end_token] = [entity]*(end_token-start_token) #fix
   assert len(entity_list) == len(token_map)
   return entity_list
 
@@ -964,9 +964,10 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         sub_tokens = tokenize(tokenizer, token)
         tok_to_textmap_index.extend([i] * len(sub_tokens))
         extended_entity_list.extend([example.entity_list[i]] * len(sub_tokens))
+        #print(sub_tokens, [example.entity_list[i]] * len(sub_tokens))
         tok_to_orig_index.extend([i] * len(sub_tokens))
         all_doc_tokens.extend(sub_tokens)
-
+    print("\n")
     # `tok_to_orig_index` maps wordpiece indices to indices of whitespace
     # tokenized word tokens in the contexts. The word tokens might themselves
     # correspond to word tokens in a larger document, with the mapping given
@@ -1038,14 +1039,30 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                     continue
         # tf.logging.info("Processing Instance")
         tokens = []
+        masked_text_tokens = []
+        masked_text_tokens_with_facts = []
+ 
+        tmp_eval = []
+
         token_to_orig_map = {}
         token_is_max_context = {}
         segment_ids = []
         tokens.append("[CLS]")
+        masked_text_tokens.append("[CLS]")
+        masked_text_tokens_with_facts.append("[CLS]")
+        tmp_eval.append("[CLS]")
+
         segment_ids.append(0)
         tokens.extend(query_tokens)
+        masked_text_tokens.extend(query_tokens)
+        masked_text_tokens_with_facts.extend(query_tokens)
+        tmp_eval.extend(["None"]*len(query_tokens))
+
         segment_ids.extend([0] * len(query_tokens))
         tokens.append("[SEP]")
+        masked_text_tokens.append("[SEP]")
+        masked_text_tokens_with_facts.append("[SEP]")
+        tmp_eval.append("[SEP]")
         segment_ids.append(0)
 
         text_tokens = []
@@ -1061,22 +1078,29 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             is_max_context = check_is_max_context(doc_spans, doc_span_index,
                                                   split_token_index)
             token_is_max_context[len(tokens)] = is_max_context
+            tokens.append(all_doc_tokens[split_token_index])
+            text_tokens.append(all_doc_tokens[split_token_index])
+            tmp_eval.append(e_val)
             if FLAGS.mask_non_entity_in_text and e_val == 'None':
-                tokens.append('[PAD]')
-                text_tokens.append('[PAD]')
+                masked_text_tokens.append('[PAD]')
+                masked_text_tokens_with_facts.append('[PAD]')
             else:
-                tokens.append(all_doc_tokens[split_token_index])
-                text_tokens.append(all_doc_tokens[split_token_index])
-
+                masked_text_tokens.append(all_doc_tokens[split_token_index])
+                masked_text_tokens_with_facts.append(all_doc_tokens[split_token_index])
+            #print(e_val, all_doc_tokens[split_token_index], tokens[-1])
             if FLAGS.mask_non_entity_in_text :
                 if is_training and contains_an_annotation and (split_token_index>=tok_start_position and split_token_index<=tok_end_position):
                     answer_version.append(tokens[-1])
             segment_ids.append(1)
         tokens.append("[SEP]")
+        masked_text_tokens.append("[SEP]")
+        masked_text_tokens_with_facts.append("[SEP]")
+        tmp_eval.append("[SEP]")
         segment_ids.append(1)
 
         if '[PAD]' in answer_version:
             continue
+        print(" ".join(tokens)+"\n"+" ".join(masked_text_tokens)+"\n"+" ".join(tmp_eval)+"\n\n")
         valid_count += 1
 
         if FLAGS.create_pretrain_data:
