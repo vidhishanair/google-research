@@ -376,17 +376,23 @@ def get_candidate_entity_map(e, idx, token_map):
       if start_token >= len(token_map):
         continue
 
-      # To avoid every word piece having the entity_id
-      # Only the first token has entity_id
-      entity_list[start_token] = value[0][
-          1]
-      for item in value:
-        end_token = int(item[0])
-        entity = item[1]
-        if end_token >= len(token_map): # same temp fix
-          continue
-        entity_list[
-           start_token:end_token] = [entity]*(end_token-start_token) #fix
+      # To avoid every word token having the entity_id
+      # We expt BIO tagging
+
+      # entity_list[start_token] = value[0][
+      #     1]
+      last_idx = sorted(value, key=lambda x: int(x[1]), reverse=True)[0]
+      end_token = int(last_idx[0])
+      entity = last_idx[1]
+      entity_list[start_token] = 'B-'+entity
+      entity_list[start_token+1:end_token] = ['I-'+entity]*(end_token-start_token)
+      # for item in value:
+      #   end_token = int(item[0])
+      #   entity = item[1]
+      #   if end_token >= len(token_map): # same temp fix
+      #     continue
+      #   entity_list[
+      #      start_token:end_token] = [entity]*(end_token-start_token) #fix
   assert len(entity_list) == len(token_map)
   return entity_list
 
@@ -692,7 +698,8 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
       1)]  # putting this min check need to check all this later
 
   sub_list = entity_list[start_index:end_index + 1]
-  seed_entities = [x for x in sub_list if x != "None"]
+  seed_entities = [x[2:] for x in sub_list if x.beginsWith('B-')]
+  print(seed_entities)
 
   if FLAGS.use_question_entities:
       question_entities = set()
