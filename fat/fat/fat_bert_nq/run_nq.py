@@ -381,11 +381,13 @@ def get_candidate_entity_map(e, idx, token_map):
 
       # entity_list[start_token] = value[0][
       #     1]
-      last_idx = sorted(value, key=lambda x: int(x[1]), reverse=True)[0]
+      last_idx = sorted(value, key=lambda x: int(x[0]), reverse=True)[0]
       end_token = int(last_idx[0])
       entity = last_idx[1]
       entity_list[start_token] = 'B-'+entity
-      entity_list[start_token+1:end_token] = ['I-'+entity]*(end_token-start_token)
+      if start_token+1 < len(token_map):
+          fixed_end_token = min(end_token, len(token_map))
+          entity_list[start_token+1:fixed_end_token] = ['I-'+entity]*(fixed_end_token-start_token-1)
       # for item in value:
       #   end_token = int(item[0])
       #   entity = item[1]
@@ -698,8 +700,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
       1)]  # putting this min check need to check all this later
 
   sub_list = entity_list[start_index:end_index + 1]
-  seed_entities = [x[2:] for x in sub_list if x.beginsWith('B-')]
-  print(seed_entities)
+  seed_entities = [x[2:] for x in sub_list if x.startswith('B-')]
 
   if FLAGS.use_question_entities:
       question_entities = set()
