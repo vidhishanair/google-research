@@ -1097,7 +1097,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 masked_text_tokens_with_facts.append(all_doc_tokens[split_token_index])
             #print(e_val, all_doc_tokens[split_token_index], tokens[-1])
             if FLAGS.mask_non_entity_in_text :
-                if is_training and contains_an_annotation and (split_token_index>=tok_start_position and split_token_index<=tok_end_position):
+                if contains_an_annotation and (split_token_index>=tok_start_position and split_token_index<=tok_end_position):
                     answer_version.append(tokens[-1])
             segment_ids.append(1)
         tokens.append("[SEP]")
@@ -1106,9 +1106,9 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         tmp_eval.append("[SEP]")
         segment_ids.append(1)
 
-        if '[PAD]' in answer_version:
+        if FLAGS.mask_non_entity_in_text and '[PAD]' in answer_version:
             continue
-        print(" ".join(tokens)+"\n"+" ".join(masked_text_tokens)+"\n"+" ".join(tmp_eval)+"\n\n")
+        # print(" ".join(tokens)+"\n"+" ".join(masked_text_tokens)+"\n"+" ".join(tmp_eval)+"\n\n")
         valid_count += 1
 
         if FLAGS.create_pretrain_data:
@@ -1123,10 +1123,13 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 break
             token_to_orig_map[len(tokens)] = -1  # check if this makes sense
             tokens.append(token)
+            masked_text_tokens_with_facts.append(token)
             fact_tokens.append(token)
             segment_ids.append(1)
 
         tokens.append("[SEP]")
+        masked_text_tokens.append("[SEP]")
+        masked_text_tokens_with_facts.append("[SEP]")
         segment_ids.append(1)
 
         assert len(tokens) == len(segment_ids)
@@ -1135,6 +1138,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             pretrain_file.write(" ".join(fact_tokens).replace(" ##", "")+"\n\n")
 
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
+        masked_text_tokens_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens)
+        masked_text_tokens_with_facts_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens_with_facts)
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
@@ -1147,6 +1152,28 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         input_ids.extend(padding)
         input_mask.extend(padding)
         segment_ids.extend(padding)
+
+        masked_text_tokens_mask = None
+        masked_text_tokens_with_facts_mask =None
+
+        if FLAGS.mask_non_entity_in_text:
+            masked_text_tokens_mask = [0 if item == 0 else 1 for item in masked_text_tokens_input_ids]
+            masked_text_tokens_with_facts_mask = [0 if item == 0 else 1 for item in masked_text_tokens_with_facts_input_ids]
+
+            padding = [0] * (FLAGS.max_seq_length - len(masked_text_tokens_input_ids))
+            masked_text_tokens_input_ids.extend(padding)
+            masked_text_tokens_mask.extend(padding)
+
+            padding = [0] * (FLAGS.max_seq_length - len(masked_text_tokens_with_facts_input_ids))
+            masked_text_tokens_with_facts_input_ids.extend(padding)
+            masked_text_tokens_with_facts_mask.extend(padding)
+
+            assert len(masked_text_tokens_input_ids) == FLAGS.max_seq_length
+            assert len(masked_text_tokens_mask) == FLAGS.max_seq_length
+            assert len(masked_text_tokens_with_facts_input_ids) == FLAGS.max_seq_length
+            assert len(masked_text_tokens_with_facts_mask) == FLAGS.max_seq_length
+
+
         # tf.logging.info('Len input_ids : %d', len(input_ids))
         # tf.logging.info('Max Seq Len : %d', FLAGS.max_seq_length)
         # tf.logging.info('Max tokens facts : %d', max_tokens_for_current_facts)
@@ -1195,6 +1222,10 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             token_to_orig_map=token_to_orig_map,
             token_is_max_context=token_is_max_context,
             input_ids=input_ids,
+            masked_text_tokens_input_ids=masked_text_tokens_input_ids,
+            masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids,
+            masked_text_tokens_mask=masked_text_tokens_mask,
+            masked_text_tokens_with_facts_mask=masked_text_tokens_with_facts_mask,
             input_mask=input_mask,
             segment_ids=segment_ids,
             start_position=start_position,
@@ -1280,6 +1311,13 @@ class CreateTFExampleFn(object):
       features["input_mask"] = create_int_feature(input_feature.input_mask)
       features["segment_ids"] = create_int_feature(input_feature.segment_ids)
 
+      if FLAGS.mask_non_entity_in_text:
+        features["masked_text_tokens_input_ids"] = create_int_feature(input_feature.masked_text_tokens_input_ids)
+        features["masked_text_tokens_mask"] = create_int_feature(input_feature.masked_text_tokens_mask)
+        features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(input_feature.masked_text_tokens_with_facts_input_ids)
+        features["masked_text_tokens_with_facts_mask"] = create_int_feature(input_feature.masked_text_tokens_with_facts_mask)
+
+
       if self.is_training:
         features["start_positions"] = create_int_feature(
             [input_feature.start_position])
@@ -1310,6 +1348,10 @@ class InputFeatures(object):
                input_ids,
                input_mask,
                segment_ids,
+               masked_text_tokens_input_ids=None,
+               masked_text_tokens_with_facts_input_ids=None,
+               masked_text_tokens_mask=None,
+               masked_text_tokens_with_facts_mask=None,
                start_position=None,
                end_position=None,
                answer_text="",
@@ -1323,6 +1365,10 @@ class InputFeatures(object):
     self.input_ids = input_ids
     self.input_mask = input_mask
     self.segment_ids = segment_ids
+    self.masked_text_tokens_input_ids=masked_text_tokens_input_ids,
+    self.masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids,
+    self.masked_text_tokens_mask=masked_text_tokens_mask,
+    self.masked_text_tokens_with_facts_mask=masked_text_tokens_with_facts_mask,
     self.start_position = start_position
     self.end_position = end_position
     self.answer_text = answer_text
@@ -1533,6 +1579,12 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       "segment_ids": tf.FixedLenFeature([seq_length], tf.int64),
   }
 
+  if FLAGS.mask_non_entity_in_text:
+      name_to_features["masked_text_tokens_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["masked_text_tokens_with_facts_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["masked_text_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["masked_text_tokens_with_facts_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+
   if is_training:
     name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
     name_to_features["end_positions"] = tf.FixedLenFeature([], tf.int64)
@@ -1611,6 +1663,12 @@ class FeatureWriter(object):
     features["input_ids"] = create_int_feature(feature.input_ids)
     features["input_mask"] = create_int_feature(feature.input_mask)
     features["segment_ids"] = create_int_feature(feature.segment_ids)
+
+    if FLAGS.mask_non_entity_in_text:
+        features["masked_text_tokens_input_ids"] = create_int_feature(feature.masked_text_tokens_input_ids)
+        features["masked_text_tokens_mask"] = create_int_feature(feature.masked_text_tokens_input_mask)
+        features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(feature.masked_text_tokens_with_facts_input_ids)
+        features["masked_text_tokens_with_facts_mask"] = create_int_feature(feature.masked_text_tokens_with_facts_input_mask)
 
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
