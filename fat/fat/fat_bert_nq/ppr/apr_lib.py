@@ -50,6 +50,14 @@ class ApproximatePageRank(object):
     self.data.load_csr_data(
         full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir,
         mode=mode, task_id=task_id, shard_id=shard_id)
+    self.high_freq_relations = {'P31': 'instance of',
+                                'P17': 'country',
+                                'P131': 'located in the administrative territorial entity',
+                                'P106': 'occupation',
+                                'P21': 'sex or gender',
+                                'P735': 'given name',
+                                'P27': 'country of citizenship',
+                                'P19': 'place of birth'}
 
   def get_khop_entities(self, seeds, k_hop):
     print("id2ent size: %d", len(self.data.id2ent))
@@ -103,11 +111,14 @@ class ApproximatePageRank(object):
     """
 
     if FLAGS.verbose_logging:
+      print('Getting subgraph')
       tf.logging.info('Getting subgraph')
     entity_ids = [
         int(self.data.ent2id[x]) for x in entities if x in self.data.ent2id
     ]
     if FLAGS.verbose_logging:
+      print(str([self.data.entity_names['e'][str(x)]['name'] for x in entity_ids
+                                          ]))
       tf.logging.info(
           str([self.data.entity_names['e'][str(x)]['name'] for x in entity_ids
               ]))
@@ -124,17 +135,24 @@ class ApproximatePageRank(object):
     extracted_ents, extracted_scores = self.get_topk_extracted_ent(
         seed, alpha, topk)
     if FLAGS.verbose_logging:
+      print('Extracted Ents')
       tf.logging.info('Extracted ents: ')
       tf.logging.info(
           str([
               self.data.entity_names['e'][str(x)]['name']
               for x in extracted_ents
           ]))
+      print(str([
+                        self.data.entity_names['e'][str(x)]['name']
+                                      for x in extracted_ents
+                                                ]))
 
     facts = csr_topk_fact_extractor(self.data.adj_mat_t_csr, self.data.rel_dict,
                                     freq_dict, self.data.entity_names,
                                     extracted_ents, extracted_scores)
     if FLAGS.verbose_logging:
+      #print('Extracted facts: ')
+      #print(str(facts))
       tf.logging.info('Extracted facts: ')
       tf.logging.info(str(facts))
 
@@ -142,19 +160,26 @@ class ApproximatePageRank(object):
     # Sort by scores
     unique_facts = {}
     for (sub, obj, rel, score) in facts:
-      # fwd_dir = (sub, obj)
-      # rev_dir = (obj, sub)
-      if sub[1] == obj[1]:
+      fwd_dir = (sub, obj, rel)
+      rev_dir = (obj, sub, rel)
+      if sub[1] == obj[1]: #No self-links
+        continue
+      #fwd_dir = (sub[1], obj[1])
+      #rev_dir = (obj[1], sub[1])
+      
+      if fwd_dir in unique_facts:
+        if score > unique_facts[fwd_dir][1]:
+          unique_facts[fwd_dir] = (rel, score)
+        else:
           continue
-      fwd_dir = (sub[1], obj[1])
-      rev_dir = (obj[1], sub[1])
-      if fwd_dir in unique_facts and score > unique_facts[fwd_dir][1]:
-        unique_facts[fwd_dir] = (rel, score)
-      elif rev_dir in unique_facts and score > unique_facts[rev_dir][1]:
-        unique_facts[fwd_dir] = (rel, score)
-        del unique_facts[rev_dir]  # Remove existing entity pair
+      elif rev_dir in unique_facts:
+        if score > unique_facts[rev_dir][1]:
+          unique_facts[fwd_dir] = (rel, score)
+          del unique_facts[rev_dir]  # Remove existing entity pair
+        else:
+          continue
       else:
-        unique_facts[(sub, obj)] = (rel, score)
+        unique_facts[fwd_dir] = (rel, score)
     unique_facts = list(unique_facts.items())
     return unique_facts
 

@@ -235,9 +235,10 @@ class CsrData(object):
           print("Normalizing")
           if FLAGS.downweight_incoming_degree:
             print("Downweighted normalize")
-            adj_mat_col = normalize(adj_mat, 'l1', axis=1)
+            #adj_mat_col = normalize(adj_mat, 'l1', axis=1)
             adj_mat_row = normalize(adj_mat, 'l1', axis=0)
-            adj_mat = adj_mat_col*adj_mat_row
+            adj_mat = normalize(adj_mat_row, 'l1', axis=1)
+            #adj_mat = adj_mat_col*adj_mat_row
           else:
             adj_mat = normalize(adj_mat, 'l1', axis=1)
 
