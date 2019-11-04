@@ -113,6 +113,14 @@ flags.DEFINE_bool(
     "mask_non_entity_in_text", False,
     "Whether to mask non entity tokens "
     "models and False for cased models.")
+flags.DEFINE_bool(
+    "use_text_only", False,
+    "Whether to use text only version of masked non entity tokens "
+    "models and False for cased models.")
+flags.DEFINE_bool(
+    "use_text_and_facts", False,
+    "Whether to use text and facts version of masked non entity tokens "
+    "models and False for cased models.")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -1472,6 +1480,17 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     unique_ids = features["unique_ids"]
     input_ids = features["input_ids"]
     input_mask = features["input_mask"]
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
+        input_ids = features["masked_text_tokens_input_ids"]
+        input_mask = features["masked_text_tokens_mask"]
+    elif FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
+        input_ids = features["masked_text_tokens_with_facts_input_ids"]
+        input_mask = features["masked_text_tokens_with_facts_mask"]
+    elif FLAGS.mask_non_entity_in_text:
+        print("use_text_only or use_text_and_facts must be set if masked versions")
+        exit()
+    else:
+        pass
     segment_ids = features["segment_ids"]
 
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
@@ -1788,6 +1807,11 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       raise ValueError("No feature found with unique_id:", unique_id)
     token_map = example.features[unique_id]["token_map"].int64_list.value
     input_ids = example.features[unique_id]["input_ids"].int64_list.value
+    masked_input_ids = []
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
+        masked_input_ids = example.features[unique_id]["masked_text_tokens_input_ids"].int64_list.value
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
+        masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None
@@ -1834,7 +1858,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       end_span = token_map[end_index] + 1
       # Span logits minus the cls logits seems to be close to the best.
       score = summary.short_span_score - summary.cls_token_score
-      predictions.append((score, summary, start_span, end_span, input_ids))
+      predictions.append((score, summary, start_span, end_span, input_ids, masked_input_ids))
 
   # tf.logging.info("Predictions list len : %d", len(predictions))
   # tf.logging.info("Len of example results: %d", len(example.results.items()))
@@ -1850,10 +1874,10 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
     start_span = -1
     end_span = -1
     score = 0
-    predictions.append((score, summary, start_span, end_span, []))
+    predictions.append((score, summary, start_span, end_span, [], []))
   #else:
   #print(len(example.results.items()))
-  score, summary, start_span, end_span, input_ids = sorted(
+  score, summary, start_span, end_span, input_ids, masked_input_ids = sorted(
       predictions, reverse=True, key=lambda tup: tup[0])[0]
   short_span = Span(start_span, end_span)
   long_span = Span(-1, -1)
@@ -1870,6 +1894,13 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       input_text = (" ".join(input_text)).replace(" ##","")
   else:
       input_text = ""
+
+  masked_input_ids = list(map(int, masked_input_ids))
+  if len(masked_input_ids) > 0:
+      masked_input_text = tokenizer.convert_ids_to_tokens(masked_input_ids)
+      masked_input_text = (" ".join(masked_input_text)).replace(" ##","")
+  else:
+      masked_input_text = ""
 
   summary.predicted_label = {
       "example_id": example.example_id,
@@ -1890,6 +1921,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       "yes_no_answer": "NONE",
       "input_ids": input_ids,
       "input_text": input_text,
+      "masked_input_text": masked_input_text,
   }
 
   # if FLAGS.write_pred_analysis:
@@ -1969,6 +2001,9 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results, tokenizer=None
   summary_dict = {}
   nq_pred_dict = {}
   for e in examples:
+    if FLAGS.mask_non_entity_in_text:
+        if len(list(e.features.keys())) == 0 and len(list(e.results)) == 0:
+            continue
     summary = compute_predictions(e, tokenizer)
     summary_dict[e.example_id] = summary
     nq_pred_dict[e.example_id] = summary.predicted_label
