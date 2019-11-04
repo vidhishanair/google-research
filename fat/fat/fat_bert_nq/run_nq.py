@@ -1248,7 +1248,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         )  # Added facts to is max context and token to orig?
         features.append(feature)
 
-    if not is_training and dev_valid_pos_answers == 0:
+    if FLAGS.mask_non_entity_in_text and not is_training and dev_valid_pos_answers == 0:
         print('Dev example has no valid positive instances.')
         return []
     return features
