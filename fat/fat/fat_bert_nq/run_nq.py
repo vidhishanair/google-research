@@ -578,7 +578,7 @@ def read_nq_entry(entry, is_training):
     start_position = None
     end_position = None
     answer = None
-    if is_training:
+    if is_training or FLAGS.mask_non_entity_in_text:
       answer_dict = entry["answers"][i]
       answer = make_nq_answer(contexts, answer_dict)
 
@@ -995,7 +995,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
     # ANSWER
     tok_start_position = 0
     tok_end_position = 0
-    if is_training:
+    if is_training or FLAGS.mask_non_entity_in_text:
         tok_start_position = orig_to_tok_index[example.start_position]
         if example.end_position < len(example.doc_tokens) - 1:
             tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
@@ -1025,11 +1025,12 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         start_offset += min(length, FLAGS.doc_stride)
 
     valid_count = 0
+    dev_valid_pos_answers = 0
     for (doc_span_index, doc_span) in enumerate(doc_spans):
         # tf.logging.info("Processing Instance")
 
         contains_an_annotation = False
-        if is_training:
+        if is_training or FLAGS.mask_non_entity_in_text:
             doc_start = doc_span.start
             doc_end = doc_span.start + doc_span.length - 1
             # For training, if our document chunk does not contain an annotation
@@ -1042,8 +1043,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 # span, then we only include it with probability --include_unknowns.
                 # When we include an example with unknown answer type, we set the first
                 # token of the passage to be the annotated short span.
-                if (FLAGS.include_unknowns < 0 or
-                        random.random() > FLAGS.include_unknowns):
+                if is_training and ((FLAGS.include_unknowns < 0 or
+                        random.random() > FLAGS.include_unknowns)):
                     continue
         # tf.logging.info("Processing Instance")
         tokens = []
@@ -1098,7 +1099,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             #print(e_val, all_doc_tokens[split_token_index], tokens[-1])
             if FLAGS.mask_non_entity_in_text :
                 if contains_an_annotation and (split_token_index>=tok_start_position and split_token_index<=tok_end_position):
-                    answer_version.append(tokens[-1])
+                    answer_version.append(masked_text_tokens[-1])
             segment_ids.append(1)
         tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
@@ -1106,8 +1107,12 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         tmp_eval.append("[SEP]")
         segment_ids.append(1)
 
-        if FLAGS.mask_non_entity_in_text and '[PAD]' in answer_version:
+        if FLAGS.mask_non_entity_in_text and contains_an_annotation and '[PAD]' in answer_version:
             continue
+        elif FLAGS.mask_non_entity_in_text and contains_an_annotation:
+            dev_valid_pos_answers += 1
+        else:
+            pass
         # print(" ".join(tokens)+"\n"+" ".join(masked_text_tokens)+"\n"+" ".join(tmp_eval)+"\n\n")
         valid_count += 1
 
@@ -1235,9 +1240,9 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         )  # Added facts to is max context and token to orig?
         features.append(feature)
 
-    if valid_count == 0:
-        #print('Example has no valid instances.')
-        pass
+    if not is_training and dev_valid_pos_answers == 0:
+        print('Dev example has no valid positive instances.')
+        return []
     return features
 
 
@@ -1365,10 +1370,10 @@ class InputFeatures(object):
     self.input_ids = input_ids
     self.input_mask = input_mask
     self.segment_ids = segment_ids
-    self.masked_text_tokens_input_ids=masked_text_tokens_input_ids,
-    self.masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids,
-    self.masked_text_tokens_mask=masked_text_tokens_mask,
-    self.masked_text_tokens_with_facts_mask=masked_text_tokens_with_facts_mask,
+    self.masked_text_tokens_input_ids=masked_text_tokens_input_ids
+    self.masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids
+    self.masked_text_tokens_mask=masked_text_tokens_mask
+    self.masked_text_tokens_with_facts_mask=masked_text_tokens_with_facts_mask
     self.start_position = start_position
     self.end_position = end_position
     self.answer_text = answer_text
@@ -1666,9 +1671,9 @@ class FeatureWriter(object):
 
     if FLAGS.mask_non_entity_in_text:
         features["masked_text_tokens_input_ids"] = create_int_feature(feature.masked_text_tokens_input_ids)
-        features["masked_text_tokens_mask"] = create_int_feature(feature.masked_text_tokens_input_mask)
+        features["masked_text_tokens_mask"] = create_int_feature(feature.masked_text_tokens_mask)
         features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(feature.masked_text_tokens_with_facts_input_ids)
-        features["masked_text_tokens_with_facts_mask"] = create_int_feature(feature.masked_text_tokens_with_facts_input_mask)
+        features["masked_text_tokens_with_facts_mask"] = create_int_feature(feature.masked_text_tokens_with_facts_mask)
 
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
