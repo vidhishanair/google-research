@@ -9,7 +9,7 @@ DATA="gs://fat_storage/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${UNK}"
 NQ_DATA="gs://natural_questions/v1.0"
 LEARNING_RATE=3e-5
 NUM_EPOCHS=1
-SEED=1
+SEED=2
 OUTPUT="gs://fat_storage/sharded_kb_data_mc48_mseq${SEQ_LEN}_unk${UNK}/output_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED.bs32"
 
 
@@ -22,7 +22,7 @@ python3 -m fat.fat_bert_nq.run_nq \
     --output_dir=$OUTPUT \
     --eval_data_path=$DATA/dev \
     --train_precomputed_file=$DATA/train/*.tf-record \
-    --train_num_precomputed=203868 \
+    --train_num_precomputed=387093 \
     --predict_file=$NQ_DATA/dev/*.jsonl.gz \
     --output_prediction_file=$OUTPUT/predictions2.json \
     --do_lower_case=True \
@@ -45,10 +45,11 @@ mkdir tmp
 
 gsutil cp $OUTPUT/predictions2.json tmp/
 
-python -m natural_questions.nq_eval --logtostderr --gold_path=/home/home/vbalacha/datasets/ent_linked_nq_new/dev/nq-dev-0???.jsonl.gz --predictions_path=tmp/predictions2.json --measure_entity_metrics=True --cache_gold_data --write_pred_analysis --prediction_analysis_path=tmp/pred_analysis.tsv > tmp/entity_metrics.json
+python -m natural_questions.nq_eval --logtostderr --gold_path=/home/vbalacha/datasets/ent_linked_nq_new/dev/nq-dev-0???.jsonl.gz --predictions_path=tmp/predictions2.json --measure_entity_metrics=True --write_pred_analysis --cache_gold_data --prediction_analysis_path=tmp/pred_analysis_w_goldlong.tsv > tmp/entity_metrics.json
 
 cat tmp/entity_metrics.json
 
 gsutil cp tmp/entity_metrics.json $OUTPUT/
+gsutil cp tmp/pred_analysis_w_goldlong.tsv $OUTPUT/
 
 rm -rf tmp

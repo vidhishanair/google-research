@@ -1218,13 +1218,49 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn)
-    elif mode == tf.estimator.ModeKeys.PREDICT:
+    elif mode == tf.estimator.ModeKeys.EVAL:
+      seq_length = modeling.get_shape_list(input_ids)[1]
+
+      # Computes the loss for positions.
+      def compute_loss(logits, positions):
+        one_hot_positions = tf.one_hot(
+            positions, depth=seq_length, dtype=tf.float32)
+        log_probs = tf.nn.log_softmax(logits, axis=-1)
+        loss = -tf.reduce_mean(
+            tf.reduce_sum(one_hot_positions * log_probs, axis=-1))
+        return loss
+
+      # Computes the loss for labels.
+      def compute_label_loss(logits, labels):
+        one_hot_labels = tf.one_hot(
+            labels, depth=len(AnswerType), dtype=tf.float32)
+        log_probs = tf.nn.log_softmax(logits, axis=-1)
+        loss = -tf.reduce_mean(
+            tf.reduce_sum(one_hot_labels * log_probs, axis=-1))
+        return loss
+
+      start_positions = features["start_positions"]
+      end_positions = features["end_positions"]
+      answer_types = features["answer_types"]
+
+      start_loss = compute_loss(start_logits, start_positions)
+      end_loss = compute_loss(end_logits, end_positions)
+      answer_type_loss = compute_label_loss(answer_type_logits, answer_types)
+
+      total_loss = (start_loss + end_loss + answer_type_loss) / 3.0
+      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+          mode=mode,
+          loss=total_loss,
+          scaffold_fn=scaffold_fn)
+
+    elif mode == tf.estimator.ModeKeys.PREDICT:  
       predictions = {
           "unique_ids": unique_ids,
           "start_logits": start_logits,
           "end_logits": end_logits,
           "answer_type_logits": answer_type_logits,
           "input_ids": input_ids,
+          #"loss": total_loss,
       }
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode, predictions=predictions, scaffold_fn=scaffold_fn)
@@ -1679,6 +1715,7 @@ def main(_):
       model_fn=model_fn,
       config=run_config,
       train_batch_size=FLAGS.train_batch_size,
+      eval_batch_size=FLAGS.predict_batch_size,
       predict_batch_size=FLAGS.predict_batch_size)
 
   if FLAGS.do_train:
@@ -1686,18 +1723,21 @@ def main(_):
     tf.logging.info("  Num split examples = %d", num_train_features)
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
     tf.logging.info("  Num steps = %d", num_train_steps)
-    train_filename = FLAGS.train_precomputed_file
-    train_input_fn = input_fn_builder(
+  train_filename = FLAGS.train_precomputed_file
+  train_input_fn = input_fn_builder(
         input_file=train_filename,
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True)
+  if FLAGS.do_train:  
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
   if FLAGS.do_predict:
     if not FLAGS.output_prediction_file:
       raise ValueError(
           "--output_prediction_file must be defined in predict mode.")
+    print("Evaluating 1000 steps now")
+    estimator.evaluate(input_fn=train_input_fn, steps=1000)
 
     eval_filename = os.path.join(FLAGS.eval_data_path, "eval.tf-record")
     #eval_filename = FLAGS.eval_data_path
@@ -1712,6 +1752,7 @@ def main(_):
 
     # If running eval on the TPU, you will need to specify the number of steps.
     all_results = []
+    loss = []
     for result in estimator.predict(
         predict_input_fn, yield_single_examples=True):
       if len(all_results) % 1000 == 0:
@@ -1720,6 +1761,7 @@ def main(_):
       start_logits = [float(x) for x in result["start_logits"].flat]
       end_logits = [float(x) for x in result["end_logits"].flat]
       answer_type_logits = [float(x) for x in result["answer_type_logits"].flat]
+      #loss.append(float(result['loss']))
       all_results.append(
           RawResult(
               unique_id=unique_id,
@@ -1727,6 +1769,8 @@ def main(_):
               end_logits=end_logits,
               answer_type_logits=answer_type_logits))
 
+    #avg_loss = float(sum(loss))/len(loss)
+    #print('Avg Loss: '+str(float(sum(loss))/len(loss)))
     candidates_dict = read_candidates(FLAGS.predict_file)
     eval_features = [
         tf.train.Example.FromString(r)
