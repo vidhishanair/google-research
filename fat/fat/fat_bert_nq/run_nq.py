@@ -113,6 +113,14 @@ flags.DEFINE_bool(
     "mask_non_entity_in_text", False,
     "Whether to mask non entity tokens "
     "models and False for cased models.")
+flags.DEFINE_bool(
+    "use_text_only", False,
+    "Whether to use text only version of masked non entity tokens "
+    "models and False for cased models.")
+flags.DEFINE_bool(
+    "use_text_and_facts", False,
+    "Whether to use text and facts version of masked non entity tokens "
+    "models and False for cased models.")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -1477,6 +1485,17 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     unique_ids = features["unique_ids"]
     input_ids = features["input_ids"]
     input_mask = features["input_mask"]
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
+        input_ids = features["masked_text_tokens_input_ids"]
+        input_mask = features["masked_text_tokens_mask"]
+    elif FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
+        input_ids = features["masked_text_tokens_with_facts_input_ids"]
+        input_mask = features["masked_text_tokens_with_facts_mask"]
+    elif FLAGS.mask_non_entity_in_text:
+        print("use_text_only or use_text_and_facts must be set if masked versions")
+        exit()
+    else:
+        pass
     segment_ids = features["segment_ids"]
 
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
@@ -1555,13 +1574,49 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn)
-    elif mode == tf.estimator.ModeKeys.PREDICT:
+    elif mode == tf.estimator.ModeKeys.EVAL:
+      seq_length = modeling.get_shape_list(input_ids)[1]
+
+      # Computes the loss for positions.
+      def compute_loss(logits, positions):
+        one_hot_positions = tf.one_hot(
+            positions, depth=seq_length, dtype=tf.float32)
+        log_probs = tf.nn.log_softmax(logits, axis=-1)
+        loss = -tf.reduce_mean(
+            tf.reduce_sum(one_hot_positions * log_probs, axis=-1))
+        return loss
+
+      # Computes the loss for labels.
+      def compute_label_loss(logits, labels):
+        one_hot_labels = tf.one_hot(
+            labels, depth=len(AnswerType), dtype=tf.float32)
+        log_probs = tf.nn.log_softmax(logits, axis=-1)
+        loss = -tf.reduce_mean(
+            tf.reduce_sum(one_hot_labels * log_probs, axis=-1))
+        return loss
+
+      start_positions = features["start_positions"]
+      end_positions = features["end_positions"]
+      answer_types = features["answer_types"]
+
+      start_loss = compute_loss(start_logits, start_positions)
+      end_loss = compute_loss(end_logits, end_positions)
+      answer_type_loss = compute_label_loss(answer_type_logits, answer_types)
+
+      total_loss = (start_loss + end_loss + answer_type_loss) / 3.0
+      output_spec = tf.contrib.tpu.TPUEstimatorSpec(
+          mode=mode,
+          loss=total_loss,
+          scaffold_fn=scaffold_fn)
+
+    elif mode == tf.estimator.ModeKeys.PREDICT:  
       predictions = {
           "unique_ids": unique_ids,
           "start_logits": start_logits,
           "end_logits": end_logits,
           "answer_type_logits": answer_type_logits,
           "input_ids": input_ids,
+          #"loss": total_loss,
       }
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode, predictions=predictions, scaffold_fn=scaffold_fn)
@@ -1757,6 +1812,11 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       raise ValueError("No feature found with unique_id:", unique_id)
     token_map = example.features[unique_id]["token_map"].int64_list.value
     input_ids = example.features[unique_id]["input_ids"].int64_list.value
+    masked_input_ids = []
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
+        masked_input_ids = example.features[unique_id]["masked_text_tokens_input_ids"].int64_list.value
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
+        masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None
@@ -1803,7 +1863,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       end_span = token_map[end_index] + 1
       # Span logits minus the cls logits seems to be close to the best.
       score = summary.short_span_score - summary.cls_token_score
-      predictions.append((score, summary, start_span, end_span, input_ids))
+      predictions.append((score, summary, start_span, end_span, input_ids, masked_input_ids))
 
   # tf.logging.info("Predictions list len : %d", len(predictions))
   # tf.logging.info("Len of example results: %d", len(example.results.items()))
@@ -1819,10 +1879,10 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
     start_span = -1
     end_span = -1
     score = 0
-    predictions.append((score, summary, start_span, end_span, []))
+    predictions.append((score, summary, start_span, end_span, [], []))
   #else:
   #print(len(example.results.items()))
-  score, summary, start_span, end_span, input_ids = sorted(
+  score, summary, start_span, end_span, input_ids, masked_input_ids = sorted(
       predictions, reverse=True, key=lambda tup: tup[0])[0]
   short_span = Span(start_span, end_span)
   long_span = Span(-1, -1)
@@ -1839,6 +1899,13 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       input_text = (" ".join(input_text)).replace(" ##","")
   else:
       input_text = ""
+
+  masked_input_ids = list(map(int, masked_input_ids))
+  if len(masked_input_ids) > 0:
+      masked_input_text = tokenizer.convert_ids_to_tokens(masked_input_ids)
+      masked_input_text = (" ".join(masked_input_text)).replace(" ##","")
+  else:
+      masked_input_text = ""
 
   summary.predicted_label = {
       "example_id": example.example_id,
@@ -1859,6 +1926,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       "yes_no_answer": "NONE",
       "input_ids": input_ids,
       "input_text": input_text,
+      "masked_input_text": masked_input_text,
   }
 
   # if FLAGS.write_pred_analysis:
@@ -1938,6 +2006,9 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results, tokenizer=None
   summary_dict = {}
   nq_pred_dict = {}
   for e in examples:
+    if FLAGS.mask_non_entity_in_text:
+        if len(list(e.features.keys())) == 0 and len(list(e.results)) == 0:
+            continue
     summary = compute_predictions(e, tokenizer)
     summary_dict[e.example_id] = summary
     nq_pred_dict[e.example_id] = summary.predicted_label
@@ -2028,6 +2099,7 @@ def main(_):
       model_fn=model_fn,
       config=run_config,
       train_batch_size=FLAGS.train_batch_size,
+      eval_batch_size=FLAGS.predict_batch_size,
       predict_batch_size=FLAGS.predict_batch_size)
 
   if FLAGS.do_train:
@@ -2035,18 +2107,21 @@ def main(_):
     tf.logging.info("  Num split examples = %d", num_train_features)
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
     tf.logging.info("  Num steps = %d", num_train_steps)
-    train_filename = FLAGS.train_precomputed_file
-    train_input_fn = input_fn_builder(
+  train_filename = FLAGS.train_precomputed_file
+  train_input_fn = input_fn_builder(
         input_file=train_filename,
         seq_length=FLAGS.max_seq_length,
         is_training=True,
         drop_remainder=True)
+  if FLAGS.do_train:  
     estimator.train(input_fn=train_input_fn, max_steps=num_train_steps)
 
   if FLAGS.do_predict:
     if not FLAGS.output_prediction_file:
       raise ValueError(
           "--output_prediction_file must be defined in predict mode.")
+    print("Evaluating 1000 steps now")
+    estimator.evaluate(input_fn=train_input_fn, steps=1000)
 
     eval_filename = os.path.join(FLAGS.eval_data_path, "eval.tf-record")
     #eval_filename = FLAGS.eval_data_path
@@ -2061,6 +2136,7 @@ def main(_):
 
     # If running eval on the TPU, you will need to specify the number of steps.
     all_results = []
+    loss = []
     for result in estimator.predict(
         predict_input_fn, yield_single_examples=True):
       if len(all_results) % 1000 == 0:
@@ -2069,6 +2145,7 @@ def main(_):
       start_logits = [float(x) for x in result["start_logits"].flat]
       end_logits = [float(x) for x in result["end_logits"].flat]
       answer_type_logits = [float(x) for x in result["answer_type_logits"].flat]
+      #loss.append(float(result['loss']))
       all_results.append(
           RawResult(
               unique_id=unique_id,
@@ -2076,6 +2153,8 @@ def main(_):
               end_logits=end_logits,
               answer_type_logits=answer_type_logits))
 
+    #avg_loss = float(sum(loss))/len(loss)
+    #print('Avg Loss: '+str(float(sum(loss))/len(loss)))
     candidates_dict = read_candidates(FLAGS.predict_file)
     eval_features = [
         tf.train.Example.FromString(r)
