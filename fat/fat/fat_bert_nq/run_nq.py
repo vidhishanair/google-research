@@ -118,6 +118,10 @@ flags.DEFINE_bool(
     "Whether to use text only version of masked non entity tokens "
     "models and False for cased models.")
 flags.DEFINE_bool(
+    "use_masked_text_only", False,
+    "Whether to use text only version of masked non entity tokens "
+    "models and False for cased models.")
+flags.DEFINE_bool(
     "use_text_and_facts", False,
     "Whether to use text and facts version of masked non entity tokens "
     "models and False for cased models.")
@@ -1056,6 +1060,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                     continue
         # tf.logging.info("Processing Instance")
         tokens = []
+        text_only_tokens = []
         masked_text_tokens = []
         masked_text_tokens_with_facts = []
  
@@ -1065,18 +1070,21 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         token_is_max_context = {}
         segment_ids = []
         tokens.append("[CLS]")
+        text_only_tokens.append("[CLS]")
         masked_text_tokens.append("[CLS]")
         masked_text_tokens_with_facts.append("[CLS]")
         tmp_eval.append("[CLS]")
 
         segment_ids.append(0)
         tokens.extend(query_tokens)
+        text_only_tokens.extend(query_tokens)
         masked_text_tokens.extend(query_tokens)
         masked_text_tokens_with_facts.extend(query_tokens)
         tmp_eval.extend(["None"]*len(query_tokens))
-
         segment_ids.extend([0] * len(query_tokens))
+
         tokens.append("[SEP]")
+        text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
         masked_text_tokens_with_facts.append("[SEP]")
         tmp_eval.append("[SEP]")
@@ -1096,6 +1104,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                                                   split_token_index)
             token_is_max_context[len(tokens)] = is_max_context
             tokens.append(all_doc_tokens[split_token_index])
+            text_only_tokens.append(all_doc_tokens[split_token_index])
             text_tokens.append(all_doc_tokens[split_token_index])
             tmp_eval.append(e_val)
             if FLAGS.mask_non_entity_in_text and e_val == 'None':
@@ -1110,6 +1119,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                     answer_version.append(masked_text_tokens[-1])
             segment_ids.append(1)
         tokens.append("[SEP]")
+        text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
         masked_text_tokens_with_facts.append("[SEP]")
         tmp_eval.append("[SEP]")
@@ -1141,6 +1151,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             segment_ids.append(1)
 
         tokens.append("[SEP]")
+        text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
         masked_text_tokens_with_facts.append("[SEP]")
         segment_ids.append(1)
@@ -1151,6 +1162,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             pretrain_file.write(" ".join(fact_tokens).replace(" ##", "")+"\n\n")
 
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
+        text_only_input_ids = tokenizer.convert_tokens_to_ids(text_only_tokens)
         masked_text_tokens_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens)
         masked_text_tokens_with_facts_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens_with_facts)
 
@@ -1166,12 +1178,18 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         input_mask.extend(padding)
         segment_ids.extend(padding)
 
+        text_only_tokens_mask = []
         masked_text_tokens_mask = None
         masked_text_tokens_with_facts_mask =None
 
         if FLAGS.mask_non_entity_in_text:
+            text_only_tokens_mask = [0 if item == 0 else 1 for item in text_only_input_ids]
             masked_text_tokens_mask = [0 if item == 0 else 1 for item in masked_text_tokens_input_ids]
             masked_text_tokens_with_facts_mask = [0 if item == 0 else 1 for item in masked_text_tokens_with_facts_input_ids]
+
+            padding = [0] * (FLAGS.max_seq_length - len(text_only_input_ids))
+            text_only_input_ids.extend(padding)
+            text_only_tokens_mask.extend(padding)
 
             padding = [0] * (FLAGS.max_seq_length - len(masked_text_tokens_input_ids))
             masked_text_tokens_input_ids.extend(padding)
@@ -1235,6 +1253,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             token_to_orig_map=token_to_orig_map,
             token_is_max_context=token_is_max_context,
             input_ids=input_ids,
+            text_only_input_ids=text_only_input_ids,
+            text_only_tokens_mask=text_only_tokens_mask,
             masked_text_tokens_input_ids=masked_text_tokens_input_ids,
             masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids,
             masked_text_tokens_mask=masked_text_tokens_mask,
@@ -1325,6 +1345,8 @@ class CreateTFExampleFn(object):
       features["segment_ids"] = create_int_feature(input_feature.segment_ids)
 
       if FLAGS.mask_non_entity_in_text:
+        features["text_only_input_ids"] = create_int_feature(input_feature.text_only_input_ids)
+        features["text_only_mask"] = create_int_feature(input_feature.text_only_mask)
         features["masked_text_tokens_input_ids"] = create_int_feature(input_feature.masked_text_tokens_input_ids)
         features["masked_text_tokens_mask"] = create_int_feature(input_feature.masked_text_tokens_mask)
         features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(input_feature.masked_text_tokens_with_facts_input_ids)
@@ -1361,6 +1383,8 @@ class InputFeatures(object):
                input_ids,
                input_mask,
                segment_ids,
+               text_only_input_ids=None,
+               text_only_tokens_mask=None,
                masked_text_tokens_input_ids=None,
                masked_text_tokens_with_facts_input_ids=None,
                masked_text_tokens_mask=None,
@@ -1378,6 +1402,8 @@ class InputFeatures(object):
     self.input_ids = input_ids
     self.input_mask = input_mask
     self.segment_ids = segment_ids
+    self.text_only_input_ids=text_only_input_ids
+    self.text_only_mask=text_only_tokens_mask
     self.masked_text_tokens_input_ids=masked_text_tokens_input_ids
     self.masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids
     self.masked_text_tokens_mask=masked_text_tokens_mask
@@ -1486,6 +1512,9 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     input_ids = features["input_ids"]
     input_mask = features["input_mask"]
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
+        input_ids = features["text_only_input_ids"]
+        input_mask = features["text_only_mask"]
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_masked_text_only:
         input_ids = features["masked_text_tokens_input_ids"]
         input_mask = features["masked_text_tokens_mask"]
     elif FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
@@ -1640,6 +1669,8 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
   }
 
   if FLAGS.mask_non_entity_in_text:
+      name_to_features["text_only_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["text_only_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_with_facts_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
@@ -1725,6 +1756,8 @@ class FeatureWriter(object):
     features["segment_ids"] = create_int_feature(feature.segment_ids)
 
     if FLAGS.mask_non_entity_in_text:
+        features["text_only_input_ids"] = create_int_feature(feature.text_only_input_ids)
+        features["text_only_mask"] = create_int_feature(feature.text_only_mask)
         features["masked_text_tokens_input_ids"] = create_int_feature(feature.masked_text_tokens_input_ids)
         features["masked_text_tokens_mask"] = create_int_feature(feature.masked_text_tokens_mask)
         features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(feature.masked_text_tokens_with_facts_input_ids)
@@ -1814,6 +1847,8 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
     input_ids = example.features[unique_id]["input_ids"].int64_list.value
     masked_input_ids = []
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
+        masked_input_ids = example.features[unique_id]["text_only_input_ids"].int64_list.value
+    if FLAGS.mask_non_entity_in_text and FLAGS.use_masked_text_only:
         masked_input_ids = example.features[unique_id]["masked_text_tokens_input_ids"].int64_list.value
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
         masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
