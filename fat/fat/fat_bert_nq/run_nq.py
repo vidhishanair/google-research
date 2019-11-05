@@ -1926,6 +1926,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       "yes_no_answer": "NONE",
       "input_ids": input_ids,
       "input_text": input_text,
+      "masked_input_ids": masked_input_ids,
       "masked_input_text": masked_input_text,
   }
 
