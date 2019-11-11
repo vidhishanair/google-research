@@ -190,19 +190,9 @@ def extract_entity_mentions(nq_data, labelled_record):
     return nq_data
 
 
-def extract_nq_data(nq_file):
+def extract_squad_data(file):
     """Read nq shard file and return dict of nq_data."""
-    fp = gzip.GzipFile(fileobj=tf.gfile.Open(nq_file, "rb"))
-    lines = fp.readlines()
-    data = {}
-    counter = 0
-    for line in lines:
-        data[str(counter)] = json.loads(line.decode("utf-8"))
-        tok = []
-        for j in data[str(counter)]["document_tokens"]:
-            tok.append(j["token"])
-        data[str(counter)]["full_document_long"] = " ".join(tok)
-        counter += 1
+    data = json.load(file)
     return data
 
 
@@ -215,14 +205,15 @@ def get_full_filename(data_dir, mode, task_id, shard_id):
         data_dir, "%s/%s.jsonl.gz" % (mode, get_shard(mode, task_id, shard_id)))
 
 
-def get_examples(data_dir, mode, task_id, shard_id):
+def get_examples(data_dir, filename):
     """Reads NQ data, does sling entity linking and returns augmented data."""
-    file_path = get_full_filename(data_dir, mode, task_id, shard_id)
+    file_path = os.path.join(data_dir, filename)
     tf.logging.info("Reading file: %s" % (file_path))
     if not os.path.exists(file_path):
+        print("File doesn't exist")
         return None
-    nq_data = extract_nq_data(file_path)
-    tf.logging.info("NQ data Size: " + str(len(nq_data.keys())))
+    squad_data = extract_squad_data(file_path)
+    tf.logging.info("NQ data Size: " + str(len(squad_data['data'])))
 
     tf.logging.info("Preparing sling corpus: ")
     sling_input_corpus = os.path.join(ARGS.files_dir, "sling_input_corpus_tmp_train0.rec")
@@ -238,21 +229,14 @@ def get_examples(data_dir, mode, task_id, shard_id):
 
 def main(_):
     workflow.startup()
-    max_tasks = {"old_train": 50, "train": 25, "dev": 5}
-    max_shards = {"train": 7, "dev": 17}
-    for mode in ["train"]:
-        # Parse all shards in each mode
-        # Currently sequentially, can be parallelized later
-        for task_id in range(0, max_tasks[mode]):
-            for shard_id in range(0, max_shards[mode]):
-                nq_augmented_data = get_examples(ARGS.nq_dir, mode, task_id, shard_id)
-                if nq_augmented_data is None:
-                    continue
-                path = get_full_filename(ARGS.output_data_dir, mode, task_id, shard_id)
-                with gzip.GzipFile(fileobj=tf.gfile.Open(path, "w")) as output_file:
-                    for idx in nq_augmented_data.keys():
-                        json_line = nq_augmented_data[idx]
-                        output_file.write((json.dumps(json_line) + "\n").encode('utf-8'))
+    squad_augmented_data = get_examples(ARGS.squad_dir, ARGS.input_filename)
+    if squad_augmented_data is None:
+        continue
+    path = get_full_filename(ARGS.squad_dir, ARGS.output_filename)
+    # with gzip.GzipFile(fileobj=tf.gfile.Open(path, "w")) as output_file:
+    #     for idx in nq_augmented_data.keys():
+    #         json_line = nq_augmented_data[idx]
+    #         output_file.write((json.dumps(json_line) + "\n").encode('utf-8'))
     workflow.shutdown()
 
 
