@@ -1512,12 +1512,15 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     input_ids = features["input_ids"]
     input_mask = features["input_mask"]
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
+        tf.logging.info("Using text only full context tokens")
         input_ids = features["text_only_input_ids"]
         input_mask = features["text_only_mask"]
-    if FLAGS.mask_non_entity_in_text and FLAGS.use_masked_text_only:
+    elif FLAGS.mask_non_entity_in_text and FLAGS.use_masked_text_only:
+        tf.logging.info("Using masked text only")
         input_ids = features["masked_text_tokens_input_ids"]
         input_mask = features["masked_text_tokens_mask"]
     elif FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
+        tf.logging.info("Using masked text with facts")
         input_ids = features["masked_text_tokens_with_facts_input_ids"]
         input_mask = features["masked_text_tokens_with_facts_mask"]
     elif FLAGS.mask_non_entity_in_text:
