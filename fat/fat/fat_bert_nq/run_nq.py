@@ -1170,7 +1170,13 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             textmap_idx = tok_to_textmap_index[split_token_index]
             e_val = example.entity_list[textmap_idx]
             if FLAGS.use_named_entities_to_filter:
-                e_ner_val = example.ner_entity_list[textmap_idx]
+                try:
+                    e_ner_val = example.ner_entity_list[textmap_idx]
+                except:
+                    print(len(example.entity_list))
+                    print(len(example.ner_entity_list))
+                    print(textmap_idx)
+                    exit()
                 if e_ner_val == 'None':
                     e_val = 'None'
 
@@ -1225,6 +1231,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
 
         if FLAGS.augment_facts:
+            print("extracting facts")
             aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj,
                                                         tokenizer, example.question_entity_map[-1],
