@@ -134,6 +134,9 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "anonymize_entities", False,
     "Whether to do add anonymized version")
+flags.DEFINE_bool(
+    "use_named_entities_to_filter", False,
+    "Whether to use_ner_to_filter")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -252,6 +255,7 @@ class NqExample(object):
                questions_entity_map=None,
                doc_tokens_map=None,
                entity_list=None,
+               ner_entity_list=None,
                answer=None,
                start_position=None,
                end_position=None):
@@ -261,6 +265,7 @@ class NqExample(object):
     self.doc_tokens = doc_tokens
     self.doc_tokens_map = doc_tokens_map
     self.entity_list = entity_list
+    self.ner_entity_list = ner_entity_list
     self.question_entity_map = questions_entity_map
     self.answer = answer
     self.start_position = start_position
@@ -537,6 +542,7 @@ def create_example_from_jsonl(line):
   single_map = []
   single_context = []
   single_entity_list = []
+  single_ner_entity_list = []
   offset = 0
   word_offset = 0
   for context in context_list:
@@ -556,12 +562,14 @@ def create_example_from_jsonl(line):
     if context["text"]:
       single_map.extend(context["text_map"])
       single_entity_list.extend(context["entity_list"])
+      single_ner_entity_list.extend(context['ner_entity_list'])
       single_context.append(context["text"])
       offset += len(single_context[-1]) + 1
 
   example["contexts"] = " ".join(single_context)
   example["contexts_map"] = single_map
   example["context_entity_list"] = single_entity_list
+  example["context_ner_entity_list"] = single_ner_entity_list
   if annotated_idx in context_idxs:
     expected = example["contexts"][answer["span_start"]:answer["span_end"]]
 
@@ -672,6 +680,7 @@ def read_nq_entry(entry, is_training):
         doc_tokens=doc_tokens,
         doc_tokens_map=entry.get("contexts_map", None),
         entity_list=entry["context_entity_list"],
+        ner_entity_list=entry["context_ner_entity_list"],
         answer=answer,
         start_position=start_position,
         end_position=end_position)
@@ -736,7 +745,7 @@ def check_is_max_context(doc_spans, cur_span_index, position):
 
 
 def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
-                      tokenizer, question_entity_map=None):
+                      tokenizer, question_entity_map=None, ner_entity_list=None):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -760,7 +769,13 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
       1)]  # putting this min check need to check all this later
 
   sub_list = entity_list[start_index:end_index + 1]
-  seed_entities = [x[2:] for x in sub_list if x.startswith('B-')]
+  sub_ner_list = ner_entity_list[start_index:end_index+1]
+  print(sub_list)
+  print(sub_ner_list)
+  if FLAGS.use_named_entities_to_filter:
+      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
+  else:
+      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
 
   if FLAGS.use_question_entities:
       question_entities = set()
@@ -1087,6 +1102,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
 
     valid_count = 0
     dev_valid_pos_answers = 0
+    ent_dict = {}
     for (doc_span_index, doc_span) in enumerate(doc_spans):
         # tf.logging.info("Processing Instance")
 
@@ -1153,6 +1169,10 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
 
             textmap_idx = tok_to_textmap_index[split_token_index]
             e_val = example.entity_list[textmap_idx]
+            if FLAGS.use_named_entities_to_filter:
+                e_ner_val = example.ner_entity_list[textmap_idx]
+                if e_ner_val == 'None':
+                    e_val = 'None'
 
             is_max_context = check_is_max_context(doc_spans, doc_span_index,
                                                   split_token_index)
@@ -1178,6 +1198,12 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 if contains_an_annotation and (split_token_index>=tok_start_position and split_token_index<=tok_end_position):
                     answer_version.append(masked_text_tokens[-1])
             segment_ids.append(1)
+
+        if ent_count in ent_dict:
+            ent_dict[ent_count] += 1
+        else:
+            ent_dict[ent_count] = 1
+
         tokens.append("[SEP]")
         text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
@@ -1201,7 +1227,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         if FLAGS.augment_facts:
             aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj,
-                                                        tokenizer, example.question_entity_map[-1])
+                                                        tokenizer, example.question_entity_map[-1],
+                                                        example.ner_entity_list)
             max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
             for (index, token) in enumerate(aligned_facts_subtokens):
                 if index >= max_tokens_for_current_facts:
@@ -1341,6 +1368,12 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             answer_type=answer_type
         )  # Added facts to is max context and token to orig?
         features.append(feature)
+
+    print(ent_dict)
+    if sum([v for k, v in ent_dict.items()]) > 0:
+        print(sum([k*v for k, v in ent_dict.items()])/sum([v for k, v in ent_dict.items()]))
+    else:
+        print(0)
 
     if FLAGS.mask_non_entity_in_text and not is_training and dev_valid_pos_answers == 0:
         print('Dev example has no valid positive instances.')
