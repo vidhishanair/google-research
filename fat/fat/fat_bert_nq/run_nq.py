@@ -36,6 +36,10 @@ from bert import tokenization
 import numpy as np
 import tensorflow as tf
 
+import spacy
+​
+nlp = spacy.load("en_core_web_lg")
+
 from fat.fat_bert_nq.ppr.apr_lib import ApproximatePageRank
 
 flags = tf.flags
@@ -416,6 +420,64 @@ def get_candidate_entity_map(e, idx, token_map):
   assert len(entity_list) == len(token_map)
   return entity_list
 
+def get_candidate_ner_entity_map(e, idx, token_map, text):
+    """Return aligned entitiy list for a given tokenized Long Answer Candidate."""
+    if idx < 0 or idx >= len(e["long_answer_candidates"]):
+        return []
+    ner_entity_list = ["None"] * len(token_map)
+    char_to_token_map = []
+    token_idx = 0
+    for token, token_id in zip(text.split(" "), token_map):
+        for char_idx, char in enumerate(token.split()):
+            char_to_token_map.append(token_idx)
+        char_to_token_map.append("None")
+        token_idx+=1
+
+    doc = nlp(text)
+    for ent in doc.ents:
+        start_char = ent.start_char
+        end_char = ent.end_char
+        start_token_id = char_to_token_map[start_char]
+        end_token_id = char_to_token_map[end_char]
+        if start_token_id == 'None' or end_token_id == 'None':
+            print("something wrong")
+            print(text)
+            print(char_to_token_map)
+        ner_entity_list[start_token_id] = 'B-ENT'
+        ner_entity_list[start_token_id+1:end_token_id+1] = 'I-ENT'
+    print(text.split(" "))
+    print(ner_entity_list)
+
+    # if "entity_map" in e["long_answer_candidates"][idx]:
+    #     for key, value in e["long_answer_candidates"][idx]["entity_map"].items():
+    #         start_token = int(key)
+    #         # temp fix for loose aligning of facts.
+    #         # Due to two tokenizers, the indices aren't matching up
+    #         if start_token >= len(token_map):
+    #             continue
+    #
+    #         # To avoid every word token having the entity_id
+    #         # We expt BIO tagging
+    #
+    #         # entity_list[start_token] = value[0][
+    #         #     1]
+    #         last_idx = sorted(value, key=lambda x: int(x[0]), reverse=True)[0]
+    #         end_token = int(last_idx[0])
+    #         entity = last_idx[1]
+    #         entity_list[start_token] = 'B-'+entity
+    #         if start_token+1 < len(token_map):
+    #             fixed_end_token = min(end_token, len(token_map))
+    #             entity_list[start_token+1:fixed_end_token] = ['I-'+entity]*(fixed_end_token-start_token-1)
+    #         # for item in value:
+    #         #   end_token = int(item[0])
+    #         #   entity = item[1]
+    #         #   if end_token >= len(token_map): # same temp fix
+    #         #     continue
+    #         #   entity_list[
+    #         #      start_token:end_token] = [entity]*(end_token-start_token) #fix
+    assert len(ner_entity_list) == len(token_map)
+    return ner_entity_list
+
 
 def candidates_iter(e):
   """Yield's the candidates that should not be skipped in an example."""
@@ -478,6 +540,8 @@ def create_example_from_jsonl(line):
     context["text_map"], context["text"] = get_candidate_text(e, idx)
     context["entity_list"] = get_candidate_entity_map(e, idx,
                                                       context["text_map"])
+    context["ner_entity_list"] = get_candidate_ner_entity_map(e, idx,
+                                                      context["text_map"], context['text'])
     context_idxs.append(idx)
     context_list.append(context)
     if len(context_list) >= FLAGS.max_contexts:
