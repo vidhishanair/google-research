@@ -993,7 +993,6 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         #print(sub_tokens, [example.entity_list[i]] * len(sub_tokens))
         tok_to_orig_index.extend([i] * len(sub_tokens))
         all_doc_tokens.extend(sub_tokens)
-    print("\n")
     # `tok_to_orig_index` maps wordpiece indices to indices of whitespace
     # tokenized word tokens in the contexts. The word tokens might themselves
     # correspond to word tokens in a larger document, with the mapping given
@@ -1129,7 +1128,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             if FLAGS.anonymize_entities and e_val != 'None':
                 if e_val.startswith('B-'):
                     ent_count+=1
-                anonymized_text_only_tokens.append('<unused'+str(ent_count)+'>')
+                anonymized_text_only_tokens.append('[unused'+str(ent_count)+']')
             else:
                 anonymized_text_only_tokens.append(all_doc_tokens[split_token_index])
             #print(e_val, all_doc_tokens[split_token_index], tokens[-1])
@@ -1175,7 +1174,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
         masked_text_tokens_with_facts.append("[SEP]")
-        anonymized_text_only_tokens.append("{SEP]")
+        anonymized_text_only_tokens.append("[SEP]")
         segment_ids.append(1)
 
         assert len(tokens) == len(segment_ids)
@@ -1187,6 +1186,9 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_input_ids = tokenizer.convert_tokens_to_ids(text_only_tokens)
         masked_text_tokens_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens)
         masked_text_tokens_with_facts_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens_with_facts)
+        print(tokens)
+        print(masked_text_tokens_input_ids)
+        print(anonymized_text_only_tokens)
         anonymized_text_only_tokens_input_ids = tokenizer.convert_tokens_to_ids(anonymized_text_only_tokens)
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
