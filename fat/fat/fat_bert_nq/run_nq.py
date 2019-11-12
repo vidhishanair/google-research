@@ -553,6 +553,7 @@ def create_example_from_jsonl(line):
     offset += len(single_context[-1]) + 1
     word_offset += len(single_context[-1].split(" "))
     single_entity_list.extend(["None"] * len(single_context[-1].split(" ")))
+    single_ner_entity_list.extend(["None"] * len(single_context[-1].split(" ")))
     if context["id"] == annotated_idx:
       answer["span_start"] += offset
       answer["span_end"] += offset
