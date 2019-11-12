@@ -125,6 +125,12 @@ flags.DEFINE_bool(
     "use_text_and_facts", False,
     "Whether to use text and facts version of masked non entity tokens "
     "models and False for cased models.")
+flags.DEFINE_bool(
+    "augment_facts", False,
+    "Whether to do fact extraction and addition ")
+flags.DEFINE_bool(
+    "anonymize_entities", False,
+    "Whether to do add anonymized version")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -1016,8 +1022,10 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
 
     # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
     max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
-    max_tokens_for_para = int(max_tokens_for_doc / 2)
-    #max_tokens_for_para = int(max_tokens_for_doc)
+    if FLAGS.augment_facts:
+        max_tokens_for_para = int(max_tokens_for_doc / 2)
+    else:
+        max_tokens_for_para = int(max_tokens_for_doc)
 
     # max_tokens_for_facts = max_tokens_for_doc - max_tokens_for_para
 
@@ -1063,6 +1071,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_tokens = []
         masked_text_tokens = []
         masked_text_tokens_with_facts = []
+        anonymized_text_only_tokens = []
  
         tmp_eval = []
 
@@ -1073,6 +1082,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_tokens.append("[CLS]")
         masked_text_tokens.append("[CLS]")
         masked_text_tokens_with_facts.append("[CLS]")
+        anonymized_text_only_tokens.append("[CLS]")
         tmp_eval.append("[CLS]")
 
         segment_ids.append(0)
@@ -1080,6 +1090,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_tokens.extend(query_tokens)
         masked_text_tokens.extend(query_tokens)
         masked_text_tokens_with_facts.extend(query_tokens)
+        anonymized_text_only_tokens.extend(query_tokens)
         tmp_eval.extend(["None"]*len(query_tokens))
         segment_ids.extend([0] * len(query_tokens))
 
@@ -1087,12 +1098,14 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
         masked_text_tokens_with_facts.append("[SEP]")
+        anonymized_text_only_tokens.append("[SEP]")
         tmp_eval.append("[SEP]")
         segment_ids.append(0)
 
         text_tokens = []
         fact_tokens = []
         answer_version = []
+        ent_count = 0
         for i in range(doc_span.length):
             split_token_index = doc_span.start + i
             token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
@@ -1113,6 +1126,12 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             else:
                 masked_text_tokens.append(all_doc_tokens[split_token_index])
                 masked_text_tokens_with_facts.append(all_doc_tokens[split_token_index])
+            if FLAGS.anonymize_entities and e_val != 'None':
+                if e_val.startswith('B-'):
+                    ent_count+=1
+                anonymized_text_only_tokens.append('<unused'+str(ent_count)+'>')
+            else:
+                anonymized_text_only_tokens.append(all_doc_tokens[split_token_index])
             #print(e_val, all_doc_tokens[split_token_index], tokens[-1])
             if FLAGS.mask_non_entity_in_text :
                 if contains_an_annotation and (split_token_index>=tok_start_position and split_token_index<=tok_end_position):
@@ -1122,6 +1141,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
         masked_text_tokens_with_facts.append("[SEP]")
+        anonymized_text_only_tokens.append("[SEP]")
         tmp_eval.append("[SEP]")
         segment_ids.append(1)
 
@@ -1137,23 +1157,25 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
 
-        aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
-                                                    example.entity_list, apr_obj,
-                                                    tokenizer, example.question_entity_map[-1])
-        max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
-        for (index, token) in enumerate(aligned_facts_subtokens):
-            if index >= max_tokens_for_current_facts:
-                break
-            token_to_orig_map[len(tokens)] = -1  # check if this makes sense
-            tokens.append(token)
-            masked_text_tokens_with_facts.append(token)
-            fact_tokens.append(token)
-            segment_ids.append(1)
+        if FLAGS.augment_facts:
+            aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
+                                                        example.entity_list, apr_obj,
+                                                        tokenizer, example.question_entity_map[-1])
+            max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
+            for (index, token) in enumerate(aligned_facts_subtokens):
+                if index >= max_tokens_for_current_facts:
+                    break
+                token_to_orig_map[len(tokens)] = -1  # check if this makes sense
+                tokens.append(token)
+                masked_text_tokens_with_facts.append(token)
+                fact_tokens.append(token)
+                segment_ids.append(1)
 
         tokens.append("[SEP]")
         text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
         masked_text_tokens_with_facts.append("[SEP]")
+        anonymized_text_only_tokens.append("{SEP]")
         segment_ids.append(1)
 
         assert len(tokens) == len(segment_ids)
@@ -1165,6 +1187,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_input_ids = tokenizer.convert_tokens_to_ids(text_only_tokens)
         masked_text_tokens_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens)
         masked_text_tokens_with_facts_input_ids = tokenizer.convert_tokens_to_ids(masked_text_tokens_with_facts)
+        anonymized_text_only_tokens_input_ids = tokenizer.convert_tokens_to_ids(anonymized_text_only_tokens)
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
@@ -1181,6 +1204,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         text_only_tokens_mask = []
         masked_text_tokens_mask = None
         masked_text_tokens_with_facts_mask =None
+        anonymized_text_only_tokens_mask = None
 
         if FLAGS.mask_non_entity_in_text:
             text_only_tokens_mask = [0 if item == 0 else 1 for item in text_only_input_ids]
@@ -1203,7 +1227,11 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             assert len(masked_text_tokens_mask) == FLAGS.max_seq_length
             assert len(masked_text_tokens_with_facts_input_ids) == FLAGS.max_seq_length
             assert len(masked_text_tokens_with_facts_mask) == FLAGS.max_seq_length
-
+        if FLAGS.anonymize_entities:
+            anonymized_text_only_tokens_mask = [0 if item == 0 else 1 for item in anonymized_text_only_tokens_input_ids]
+            padding = [0] * (FLAGS.max_seq_length - len(anonymized_text_only_tokens_input_ids))
+            anonymized_text_only_tokens_input_ids.extend(padding)
+            anonymized_text_only_tokens_mask.extend(padding)
 
         # tf.logging.info('Len input_ids : %d', len(input_ids))
         # tf.logging.info('Max Seq Len : %d', FLAGS.max_seq_length)
@@ -1252,13 +1280,15 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             tokens=tokens,
             token_to_orig_map=token_to_orig_map,
             token_is_max_context=token_is_max_context,
-            input_ids=input_ids,
             text_only_input_ids=text_only_input_ids,
             text_only_tokens_mask=text_only_tokens_mask,
             masked_text_tokens_input_ids=masked_text_tokens_input_ids,
             masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids,
             masked_text_tokens_mask=masked_text_tokens_mask,
             masked_text_tokens_with_facts_mask=masked_text_tokens_with_facts_mask,
+            anonymized_text_only_tokens_input_ids=anonymized_text_only_tokens_input_ids,
+            anonymized_text_only_tokens_mask=anonymized_text_only_tokens_mask,
+            input_ids=input_ids,
             input_mask=input_mask,
             segment_ids=segment_ids,
             start_position=start_position,
@@ -1351,6 +1381,9 @@ class CreateTFExampleFn(object):
         features["masked_text_tokens_mask"] = create_int_feature(input_feature.masked_text_tokens_mask)
         features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(input_feature.masked_text_tokens_with_facts_input_ids)
         features["masked_text_tokens_with_facts_mask"] = create_int_feature(input_feature.masked_text_tokens_with_facts_mask)
+      if FLAGS.anonymize_entities:
+        features["anonymized_text_only_tokens_input_ids"] = create_int_feature(input_feature.anonymized_text_only_tokens_input_ids)
+        features["anonymized_text_only_tokens_mask"] = create_int_feature(input_feature.anonymized_text_only_tokens_mask)
 
 
       if self.is_training:
@@ -1389,6 +1422,8 @@ class InputFeatures(object):
                masked_text_tokens_with_facts_input_ids=None,
                masked_text_tokens_mask=None,
                masked_text_tokens_with_facts_mask=None,
+               anonymized_text_only_tokens_input_ids=None,
+               anonymized_text_only_tokens_mask=None,
                start_position=None,
                end_position=None,
                answer_text="",
@@ -1408,6 +1443,8 @@ class InputFeatures(object):
     self.masked_text_tokens_with_facts_input_ids=masked_text_tokens_with_facts_input_ids
     self.masked_text_tokens_mask=masked_text_tokens_mask
     self.masked_text_tokens_with_facts_mask=masked_text_tokens_with_facts_mask
+    self.anonymized_text_only_tokens_input_ids=anonymized_text_only_tokens_input_ids
+    self.anonymized_text_only_tokens_mask=anonymized_text_only_tokens_mask
     self.start_position = start_position
     self.end_position = end_position
     self.answer_text = answer_text
@@ -1526,6 +1563,10 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     elif FLAGS.mask_non_entity_in_text:
         print("use_text_only or use_text_and_facts must be set if masked versions")
         exit()
+    elif FLAGS.anonymize_entities:
+        tf.logging.info("Using anonymized entity version")
+        input_ids = features["anonymized_text_only_tokens_input_ids"]
+        input_mask = features["anonymized_text_only_tokens_mask"]
     else:
         pass
     segment_ids = features["segment_ids"]
@@ -1678,11 +1719,14 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       name_to_features["masked_text_tokens_with_facts_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_with_facts_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+  if FLAGS.anonymize_entities:
+      name_to_features["anonymized_text_only_tokens_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
+      name_to_features["anonymized_text_only_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
 
   if is_training:
-    name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
-    name_to_features["end_positions"] = tf.FixedLenFeature([], tf.int64)
-    name_to_features["answer_types"] = tf.FixedLenFeature([], tf.int64)
+      name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
+      name_to_features["end_positions"] = tf.FixedLenFeature([], tf.int64)
+      name_to_features["answer_types"] = tf.FixedLenFeature([], tf.int64)
 
   def _decode_record(record, name_to_features):
     """Decodes a record to a TensorFlow example."""
@@ -1765,6 +1809,9 @@ class FeatureWriter(object):
         features["masked_text_tokens_mask"] = create_int_feature(feature.masked_text_tokens_mask)
         features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(feature.masked_text_tokens_with_facts_input_ids)
         features["masked_text_tokens_with_facts_mask"] = create_int_feature(feature.masked_text_tokens_with_facts_mask)
+    if FLAGS.anonymize_entities:
+        features["anonymized_text_only_tokens_input_ids"] = create_int_feature(feature.anonymized_text_only_tokens_input_ids)
+        features["anonymized_text_only_tokens_mask"] = create_int_feature(feature.anonymized_text_only_tokens_mask)
 
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
@@ -1855,6 +1902,8 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
         masked_input_ids = example.features[unique_id]["masked_text_tokens_input_ids"].int64_list.value
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
         masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
+    if FLAGS.anonymize_text:
+        masked_input_ids = example[unique_id]["anonymized_text_only_tokens_input_ids"]
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None

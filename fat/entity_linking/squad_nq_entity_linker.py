@@ -75,8 +75,8 @@ def is_sling_entity(item):
         "Q")
 
 
-def prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id):
-    """Parse each paragrapgh in NQ (LA candidate, LA, SA, question).
+def prepare_sling_input_corpus(squad_data, sling_input_corpus):
+    """Parse each paragrapgh in SQUAD (LA candidate, LA, SA, question).
 
        Prepare a sling corpus to do entity linking.
 
@@ -87,9 +87,8 @@ def prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id):
     """
 
     corpus = sling.RecordWriter(sling_input_corpus)
-    for i in nq_data.keys():
-        tokens = nq_data[i]["document_tokens"]
-        if ARGS.annotate_candidates:
+    for item in squad_data['data']:
+        if ARGS.annotate_:
             for idx, la_cand in enumerate(nq_data[i]["long_answer_candidates"]):
                 should_limit = (task_id==21 and shard_id==2 and i=='121' and idx==174)
                 answer, answer_map, doc = extract_and_tokenize_text(la_cand, tokens, should_limit)
@@ -216,9 +215,9 @@ def get_examples(data_dir, filename):
     tf.logging.info("NQ data Size: " + str(len(squad_data['data'])))
 
     tf.logging.info("Preparing sling corpus: ")
-    sling_input_corpus = os.path.join(ARGS.files_dir, "sling_input_corpus_tmp_train0.rec")
-    sling_output_corpus = os.path.join(ARGS.files_dir, "nq_labelled_output_tmp_train0.rec")
-    prepare_sling_input_corpus(nq_data, sling_input_corpus, task_id, shard_id)
+    sling_input_corpus = os.path.join(ARGS.files_dir, "squad_sling_input_corpus_tmp_train0.rec")
+    sling_output_corpus = os.path.join(ARGS.files_dir, "squad_labelled_output_tmp_train0.rec")
+    prepare_sling_input_corpus(squad_data, sling_input_corpus)
 
     tf.logging.info("Performing Sling NER Labeling")
     sling_entity_link(sling_input_corpus, sling_output_corpus)
