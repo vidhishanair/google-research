@@ -746,7 +746,7 @@ def check_is_max_context(doc_spans, cur_span_index, position):
 
 
 def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
-                      tokenizer, question_entity_map=None, ner_entity_list=None):
+                      tokenizer, question_entity_map=None, ner_entity_list=None, all_doc_tokens=None):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -771,12 +771,23 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 
   sub_list = entity_list[start_index:end_index + 1]
   sub_ner_list = ner_entity_list[start_index:end_index+1]
-  #if FLAGS.use_named_entities_to_filter:
-  seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
-  print(seed_entities)
-  #else:
-  seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
-  print(seed_entities)
+  sub_tokens = all_doc_tokens[start_index:end_index + 1]
+  if FLAGS.use_named_entities_to_filter:
+      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
+  #sids = [idx for idx, x in enumerate(sub_list) if x[2:] in seed_entities]
+  #sids1 = {idx:x[2:] for idx, x in enumerate(sub_list) if x[2:] in seed_entities}
+  #s1 = [tok for id, tok in enumerate(sub_tokens) if id in sids]
+  
+  #s1ids = [id for id, tok in enumerate(sub_tokens) if id in sids]
+  #print([sids1[id] for id in s1ids])
+  #print(s1)
+  else:
+      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
+  #s2 = [tok for id, tok in enumerate(sub_tokens) if id in [idx for idx, x in enumerate(sub_list) if x[2:] in seed_entities]]
+  #sids1 = {idx:x[2:] for idx, x in enumerate(sub_list) if x[2:] in seed_entities}
+  #s1ids = [id for id, tok in enumerate(sub_tokens) if id in [idx for idx, x in enumerate(sub_list) if x[2:] in seed_entities]]
+  #print([sids1[id] for id in s1ids])
+  #print(s2)
 
   if FLAGS.use_question_entities:
       question_entities = set()
@@ -816,6 +827,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
   else:
     nl_facts = ""
 
+  #print(nl_facts[0:1000])
   # Tokening retrieved facts
   tok_to_orig_index = []
   tok_to_textmap_index = []
@@ -1228,14 +1240,14 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             pass
         # print(" ".join(tokens)+"\n"+" ".join(masked_text_tokens)+"\n"+" ".join(tmp_eval)+"\n\n")
         valid_count += 1
-        print(" ".join(text_tokens).replace(" ##", ""))
+        #print(" ".join(text_tokens).replace(" ##", ""))
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
         if FLAGS.augment_facts:
             aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj,
                                                         tokenizer, example.question_entity_map[-1],
-                                                        example.ner_entity_list)
+                                                        example.ner_entity_list, example.doc_tokens)
             max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
             for (index, token) in enumerate(aligned_facts_subtokens):
                 if index >= max_tokens_for_current_facts:
