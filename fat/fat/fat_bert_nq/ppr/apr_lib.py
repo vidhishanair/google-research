@@ -145,7 +145,7 @@ class ApproximatePageRank(object):
       print(str([
                         self.data.entity_names['e'][str(x)]['name']
                                       for x in extracted_ents
-                                                ]))
+                                                ][0:100]))
 
     facts = csr_topk_fact_extractor(self.data.adj_mat_t_csr, self.data.rel_dict,
                                     freq_dict, self.data.entity_names,
