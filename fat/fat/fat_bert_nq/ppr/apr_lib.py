@@ -197,7 +197,7 @@ class ApproximatePageRank(object):
       """
       #ent_ids = list(self.data.entity_names['e'].keys())
       ent_ids = [i for i in range(self.data.adj_mat_t_csr.shape[0])]
-      extracted_ents = random.sample(ent_ids, 500)
+      extracted_ents = random.sample(ent_ids, 500)  # This doesn't work :(
       freq_dict = {}
       for i in extracted_ents:
           freq_dict[i] = 1

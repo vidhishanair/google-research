@@ -92,6 +92,82 @@ def csr_get_k_hop_entities(seeds, adj_mat, k_hop):
     k_hop_entities.extend(objects)
   return k_hop_entities
 
+def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
+  """Return list of shortest paths between question and answer seeds.
+
+  Args:
+    question_seeds: A list of seed entity ids
+    adj_mat: A sparse matrix of size E x E whose rows sum to one.
+    answer_seeds: A list of seed entity ids
+
+  Returns:
+      paths: A list of shortest paths between question and answer entities
+  """
+
+  seeds = question_seeds
+  answer_seeds = set(answer_seeds)
+  parent_dict = {}
+  answer_seeds_found = []
+  for i in range(k_hop):
+    # Slicing adjacency matrix to subgraph of all extracted entities
+    #print(seeds)
+    submat = adj_mat[:, seeds]
+
+    # Extracting non-zero entity pairs
+    row, col = submat.nonzero()
+    objects = []
+    for ii in range(row.shape[0]):
+      obj_id = row[ii]
+      subj_id = col[ii]
+      if obj_id in parent_dict:
+        if k_hop == parent_dict[obj_id][-1][1]:
+          parent_dict[obj_id].append((subj_id, k_hop))
+        else:
+          parent_dict[obj_id] = [(subj_id, k_hop)]
+      else:
+        parent_dict[obj_id] = [(subj_id, k_hop)]
+      objects.append(obj_id)
+    objects = set(objects)
+    answer_seeds_found = list(objects.intersection(answer_seeds))
+    if answer_seeds_found:
+      break
+    seeds = list(objects)
+
+  num_hops = i
+  path = []
+  for object in answer_seeds_found:
+    path.append([(None, None, object)])
+
+  for hop in range(num_hops):
+    for i in range(len(path)):
+      object = path[i][-1][2]
+      parent = parent_dict[object]
+      rel = rel_dict[(parent, object)]
+      path[i].append((object, rel, parent))
+
+    # while True:
+    #   if object not in parent_dict:
+    #     break
+    #   for parent, hop in parent_dict[object]:
+    #
+    #   rel = rel_dict[(parent, object)]
+    #   path[-1].append([object, parent, rel])
+    #   object = parent
+
+  return path
+
+def get_augmented_facts(path, entity_names, augmentation_type='None'):
+  augmented_path = []
+  for single_path in path:
+    augmented_path.append([])
+    for (obj_id, rel_id, subj_id) in single_path:
+      subj_name = entity_names['e'][str(subj_id)]['name']
+      obj_name = entity_names['e'][str(obj_id)]['name']
+      rel_name = entity_names['r'][str(rel_id)]['name']
+      augmented_path[-1].append(((subj_id, subj_name),
+                    (obj_id, obj_name),
+                    (rel_id, rel_name), None))
+
 def get_fact_score(extracted_scores,
                    subj,
                    obj,
