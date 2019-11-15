@@ -771,12 +771,12 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 
   sub_list = entity_list[start_index:end_index + 1]
   sub_ner_list = ner_entity_list[start_index:end_index+1]
-  print(sub_list)
-  print(sub_ner_list)
-  if FLAGS.use_named_entities_to_filter:
-      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
-  else:
-      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
+  #if FLAGS.use_named_entities_to_filter:
+  seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
+  print(seed_entities)
+  #else:
+  seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
+  print(seed_entities)
 
   if FLAGS.use_question_entities:
       question_entities = set()
@@ -798,10 +798,11 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 
     facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
     if FLAGS.verbose_logging:
-        print("Sorted facts: ")
-        print(str(facts[0:50]))
-        tf.logging.info("Sorted facts: ")
-        tf.logging.info(str(facts))
+        #print("Sorted facts: ")
+        #print(str(facts[0:50]))
+        #tf.logging.info("Sorted facts: ")
+        #tf.logging.info(str(facts))
+        pass
     if FLAGS.use_entity_markers:
         nl_facts = " . ".join([
             "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
@@ -1195,7 +1196,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 masked_text_tokens.append(all_doc_tokens[split_token_index])
                 masked_text_tokens_with_facts.append(all_doc_tokens[split_token_index])
             if FLAGS.anonymize_entities and e_val != 'None':
-                if e_val.startswith('B-'):
+                if e_val.startswith('B-') and ent_count<98:
                     ent_count+=1
                 anonymized_text_only_tokens.append('[unused'+str(ent_count)+']')
             else:
@@ -1227,12 +1228,10 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             pass
         # print(" ".join(tokens)+"\n"+" ".join(masked_text_tokens)+"\n"+" ".join(tmp_eval)+"\n\n")
         valid_count += 1
-
+        print(" ".join(text_tokens).replace(" ##", ""))
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
-
         if FLAGS.augment_facts:
-            print("extracting facts")
             aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj,
                                                         tokenizer, example.question_entity_map[-1],
@@ -1253,7 +1252,6 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         masked_text_tokens_with_facts.append("[SEP]")
         anonymized_text_only_tokens.append("[SEP]")
         segment_ids.append(1)
-
         assert len(tokens) == len(segment_ids)
 
         if FLAGS.create_pretrain_data:
@@ -1377,11 +1375,11 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         )  # Added facts to is max context and token to orig?
         features.append(feature)
 
-    print(ent_dict)
-    if sum([v for k, v in ent_dict.items()]) > 0:
-        print(sum([k*v for k, v in ent_dict.items()])/sum([v for k, v in ent_dict.items()]))
-    else:
-        print(0)
+    #print(ent_dict)
+    #if sum([v for k, v in ent_dict.items()]) > 0:
+    #    print(sum([k*v for k, v in ent_dict.items()])/sum([v for k, v in ent_dict.items()]))
+    #else:
+    #    print(0)
 
     if FLAGS.mask_non_entity_in_text and not is_training and dev_valid_pos_answers == 0:
         print('Dev example has no valid positive instances.')
