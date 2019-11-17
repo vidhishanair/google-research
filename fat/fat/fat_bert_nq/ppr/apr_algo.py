@@ -152,18 +152,6 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
   print(path)
   return path
 
-def get_augmented_facts(path, entity_names, augmentation_type='None'):
-  augmented_path = []
-  for single_path in path:
-    augmented_path.append([])
-    for (obj_id, rel_id, subj_id) in single_path[1:]:
-      subj_name = entity_names['e'][str(subj_id)]['name']
-      obj_name = entity_names['e'][str(obj_id)]['name'] if str(obj_id) != 'None' else 'None'
-      rel_name = entity_names['r'][str(rel_id)]['name'] if str(rel_id) != 'None' else 'None'
-      augmented_path[-1].append(((subj_id, subj_name),
-                    (obj_id, obj_name),
-                    (rel_id, rel_name), None))
-  return augmented_path
 def get_fact_score(extracted_scores,
                    subj,
                    obj,
