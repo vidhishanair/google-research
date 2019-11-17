@@ -28,7 +28,7 @@ from __future__ import print_function
 import random
 import numpy as np
 import tensorflow as tf
-from fat.fat_bert_nq.ppr.apr_algo import csr_personalized_pagerank, csr_get_shortest_path, get_augmented_facts
+from fat.fat_bert_nq.ppr.apr_algo import csr_personalized_pagerank, csr_get_shortest_path
 from fat.fat_bert_nq.ppr.apr_algo import csr_topk_fact_extractor
 from fat.fat_bert_nq.ppr.apr_algo import csr_get_k_hop_entities
 from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
@@ -92,6 +92,18 @@ class ShortestPath(object):
 
         return extracted_ents, extracted_scores
 
+    def get_augmented_facts(path, entity_names, augmentation_type='None'):
+        augmented_path = []
+        for single_path in path:
+            for (obj_id, rel_id, subj_id) in single_path[1:]:
+                subj_name = entity_names['e'][str(subj_id)]['name']
+                obj_name = entity_names['e'][str(obj_id)]['name'] if str(obj_id) != 'None' else 'None'
+                rel_name = entity_names['r'][str(rel_id)]['name'] if str(rel_id) != 'None' else 'None'
+                augmented_path.append((((subj_id, subj_name), (obj_id, obj_name)),
+                                       ((rel_id, rel_name), None)))
+        return augmented_path
+
+
     def get_shortest_path_facts(self, question_entities, answer_entities, passage_entities, seed_weighting=True):
         """Get subgraph describing shortest path from question to answer.
 
@@ -152,12 +164,14 @@ class ShortestPath(object):
         #     question_seeds = question_seeds / question_seeds.sum()
 
         extracted_paths = csr_get_shortest_path(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=2)
-        augmented_facts = get_augmented_facts(extracted_paths, self.data.entity_names, augmentation_type='None')
+        augmented_facts = self.get_augmented_facts(extracted_paths, self.data.entity_names, augmentation_type='None')
+
         if FLAGS.verbose_logging:
             print('Extracted facts: ')
             print(str(augmented_facts))
             tf.logging.info('Extracted facts: ')
             tf.logging.info(str(augmented_facts))
+
         return augmented_facts
 
 if __name__ == '__main__':
