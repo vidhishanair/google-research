@@ -148,19 +148,20 @@ class ShortestPath(object):
 
         freq_dict = {x: question_entity_ids.count(x) for x in question_entity_ids}
 
-        question_seeds = np.zeros((self.data.adj_mat_t_csr.shape[0], 1))
-        if not seed_weighting:
-            question_seeds[question_entity_ids] = 1. / len(set(question_entity_ids))
-        else:
-            for x, y in freq_dict.items():
-                question_seeds[x] = y
-            question_seeds = question_seeds / question_seeds.sum()
+        # question_seeds = np.zeros((self.data.adj_mat_t_csr.shape[0], 1))
+        # if not seed_weighting:
+        #     question_seeds[question_entity_ids] = 1. / len(set(question_entity_ids))
+        # else:
+        #     for x, y in freq_dict.items():
+        #         question_seeds[x] = y
+        #     question_seeds = question_seeds / question_seeds.sum()
 
-        extracted_paths = csr_get_shortest_path(question_seeds, self.data.adj_mat, answer_entity_ids, self.data.rel_dict, k_hop=2)
+        extracted_paths = csr_get_shortest_path(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=2)
         if FLAGS.verbose_logging:
             print('Extracted Facts')
             tf.logging.info('Extracted Facts: ')
         augmented_facts = get_augmented_facts(extracted_paths, self.data.entity_names, augmentation_type='None')
+        print(augmented_facts)
 
         if FLAGS.verbose_logging:
             print('Extracted facts: ')
@@ -213,9 +214,9 @@ class ShortestPath(object):
 
 if __name__ == '__main__':
     csr_data = ShortestPath(mode='dev', task_id=0, shard_id=0)
-    # question_entities = ['Q82414', 'Q16']
-    # answer_entities = ['Q815713']
-    question_entities = ['Q954184', 'Q1046088']
-    answer_entities = ['Q869161']
+    question_entities = ['Q321423', 'Q645938']
+    answer_entities = ['Q380095', 'Q275964', 'Q542816', 'Q938416', 'Q1291441', 'Q433059', 'Q309941', 'Q299689', 'Q359207', 'Q242586', 'Q348755', 'Q153262']
+    #question_entities = ['Q954184', 'Q1046088']
+    #answer_entities = ['Q869161']
     csr_data.get_shortest_path_facts(question_entities=question_entities, answer_entities=answer_entities,
-                                     passage_entities=[], seed_weighting=True)
+                                     passage_entities=[], seed_weighting=False)
