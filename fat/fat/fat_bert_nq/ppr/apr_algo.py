@@ -121,7 +121,7 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
     for ii in range(row.shape[0]):
       obj_id = row[ii]
       subj_id = seeds[col[ii]]
-      print('Processing link: '+str(subj_id)+" "+str(obj_id))
+      # print('Processing link: '+str(subj_id)+" "+str(obj_id))
       if obj_id in parent_dict:
         if k_hop == parent_dict[obj_id][-1][1]:
           parent_dict[obj_id].append((subj_id, k_hop))
@@ -148,19 +148,7 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
       for parent in parent_dict[object] : 
           parent = parent[0]
           rel = rel_dict[(parent, object)]
-          print(object)
-          print(parent)
-          print(rel)
           path[i].append((object, rel, parent))
-
-    # while True:
-    #   if object not in parent_dict:
-    #     break
-    #   for parent, hop in parent_dict[object]:
-    #
-    #   rel = rel_dict[(parent, object)]
-    #   path[-1].append([object, parent, rel])
-    #   object = parent
   print(path)
   return path
 
@@ -168,7 +156,7 @@ def get_augmented_facts(path, entity_names, augmentation_type='None'):
   augmented_path = []
   for single_path in path:
     augmented_path.append([])
-    for (obj_id, rel_id, subj_id) in single_path:
+    for (obj_id, rel_id, subj_id) in single_path[1:]:
       subj_name = entity_names['e'][str(subj_id)]['name']
       obj_name = entity_names['e'][str(obj_id)]['name'] if str(obj_id) != 'None' else 'None'
       rel_name = entity_names['r'][str(rel_id)]['name'] if str(rel_id) != 'None' else 'None'
