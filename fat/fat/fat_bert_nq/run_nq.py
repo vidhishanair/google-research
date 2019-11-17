@@ -240,15 +240,15 @@ class AnswerType(enum.IntEnum):
   LONG = 4
 
 
-class Answer(collections.namedtuple("Answer", ["type", "text", "offset", "sa_entities"])):
+class Answer(collections.namedtuple("Answer", ["type", "text", "offset", "entities"])):
   """Answer record.
 
   An Answer contains the type of the answer and possibly the text (for
   long) as well as the offset (for extractive).
   """
 
-  def __new__(cls, type_, text=None, offset=None, sa_entities=None):
-    return super(Answer, cls).__new__(cls, type_, text, offset, sa_entities)
+  def __new__(cls, type_, text=None, offset=None, entities=None):
+    return super(Answer, cls).__new__(cls, type_, text, offset, entities)
 
 
 class NqExample(object):

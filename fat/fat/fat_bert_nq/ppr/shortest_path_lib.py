@@ -36,11 +36,6 @@ from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
 flags = tf.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_bool(
-    'verbose_logging', False,
-    'If true, all of the warnings related to data processing will be printed. '
-    'A number of warnings are expected for a normal NQ evaluation.')
-
 
 class ShortestPath(object):
     """Shortest Path main lib which is used to wrap functions around Shortest Path algo."""
