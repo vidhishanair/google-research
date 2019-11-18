@@ -104,7 +104,7 @@ class ShortestPath(object):
         return augmented_path
 
 
-    def get_shortest_path_facts(self, question_entities, answer_entities, passage_entities, seed_weighting=True):
+    def get_shortest_path_facts(self, question_entities, answer_entities, passage_entities, seed_weighting=True, fp=None):
         """Get subgraph describing shortest path from question to answer.
 
         Args:
@@ -122,38 +122,40 @@ class ShortestPath(object):
         question_entity_ids = [
             int(self.data.ent2id[x]) for x in question_entities if x in self.data.ent2id
         ]
+        question_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids
+                                     ])
+        if fp is not None:
+            fp.write(str(question_entities)+"\t"+question_entity_names+"\t")
         if FLAGS.verbose_logging:
             print('Question Entities')
             tf.logging.info('Question Entities')
             print(question_entities)
-            print(str([self.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids
-                       ]))
-            tf.logging.info(
-                str([self.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids
-                     ]))
+            print(question_entity_names)
+            tf.logging.info(question_entity_names)
+
         answer_entity_ids = [
                 int(self.data.ent2id[x]) for x in answer_entities if x in self.data.ent2id
             ]
+        answer_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids
+                                   ])
+        if fp is not None:
+            fp.write(str(answer_entities)+"\t"+answer_entity_names+"\t")
         if FLAGS.verbose_logging:
             print('Answer Entities')
             tf.logging.info('Answer Entities')
             print(answer_entities)
-            print(str([self.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids
-                       ]))
-            tf.logging.info(
-                str([self.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids
-                     ]))
+            print(answer_entity_names)
+            tf.logging.info(answer_entity_names)
         passage_entity_ids = [
             int(self.data.ent2id[x]) for x in passage_entities if x in self.data.ent2id
         ]
+        passage_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in passage_entity_ids
+                                   ])
         if FLAGS.verbose_logging:
             print('Passage Entities')
             tf.logging.info('Passage Entities')
-            print(str([self.data.entity_names['e'][str(x)]['name'] for x in passage_entity_ids
-                       ]))
-            tf.logging.info(
-                str([self.data.entity_names['e'][str(x)]['name'] for x in passage_entity_ids
-                     ]))
+            print(passage_entity_names)
+            tf.logging.info(passage_entity_names)
 
         freq_dict = {x: question_entity_ids.count(x) for x in question_entity_ids}
 

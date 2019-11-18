@@ -766,7 +766,7 @@ def check_is_max_context(doc_spans, cur_span_index, position):
 
 
 def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, shortest_path_obj,
-                      tokenizer, question_entity_map, answer=None, ner_entity_list=None, all_doc_tokens=None):
+                      tokenizer, question_entity_map, answer=None, ner_entity_list=None, all_doc_tokens=None, fp=None):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -811,7 +811,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
 
   if FLAGS.use_shortest_path_facts:
       #print(answer.text)
-      facts = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True)
+      facts = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
       if FLAGS.use_entity_markers:
           nl_facts = " . ".join([
               "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
@@ -822,6 +822,9 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
               str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
               for x in facts
           ])
+
+      if fp is not None:
+        fp.write(nl_facts+"\n")
   else:
       # Adding this check since empty seeds generate random facts
       if seed_entities:
@@ -1274,13 +1277,14 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
         if FLAGS.augment_facts:
+            pretrain_file.writ(example.questions[-1]+"\t"+" ".join(answer_version)+"\t")
             if FLAGS.verbose_logging:
                 print(example.questions[-1])
                 print(answer_version)
             aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj, shortest_path_obj,
                                                         tokenizer, example.question_entity_map[-1], example.answer,
-                                                        example.ner_entity_list, example.doc_tokens)
+                                                        example.ner_entity_list, example.doc_tokens, pretrain_file)
             max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
             for (index, token) in enumerate(aligned_facts_subtokens):
                 if index >= max_tokens_for_current_facts:

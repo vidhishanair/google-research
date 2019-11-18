@@ -105,6 +105,11 @@ def main(_):
                                                                 "txt"), 'w')
     else:
         pretrain_file = None
+
+    pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
+                                                            FLAGS.split, FLAGS.task_id,
+                                                            FLAGS.shard_split_id,
+                                                            "txt"), 'w')
     print("Reading file %s", input_file)
     for example in nq_data_utils.get_nq_examples(input_file):
       for instance in creator_fn.process(example, pretrain_file):
