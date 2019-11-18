@@ -718,7 +718,7 @@ def convert_examples_to_features(examples, tokenizer, is_training, output_fn):
 
   for example in examples:
     example_index = example.example_id
-    features = convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_training)
+    features, stats = convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_training)
     num_spans_to_ids[len(features)].append(example.qas_id)
 
     for feature in features:
@@ -1262,7 +1262,6 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         tmp_eval.append("[SEP]")
         segment_ids.append(1)
         
-        print(FLAGS.mask_non_entity_in_text, contains_an_annotation , len(answer_version) , '[PAD]' in answer_version)
         if FLAGS.mask_non_entity_in_text and contains_an_annotation and (len(answer_version)==0 or '[PAD]' in answer_version):
             continue
         elif FLAGS.mask_non_entity_in_text and contains_an_annotation:
@@ -1275,8 +1274,9 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
         if FLAGS.augment_facts:
-            print(example.questions[-1])
-            print(answer_version)
+            if FLAGS.verbose_logging:
+                print(example.questions[-1])
+                print(answer_version)
             aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj, shortest_path_obj,
                                                         tokenizer, example.question_entity_map[-1], example.answer,
@@ -1348,6 +1348,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
             assert len(masked_text_tokens_mask) == FLAGS.max_seq_length
             assert len(masked_text_tokens_with_facts_input_ids) == FLAGS.max_seq_length
             assert len(masked_text_tokens_with_facts_mask) == FLAGS.max_seq_length
+
         if FLAGS.anonymize_entities:
             anonymized_text_only_tokens_mask = [0 if item == 0 else 1 for item in anonymized_text_only_tokens_input_ids]
             padding = [0] * (FLAGS.max_seq_length - len(anonymized_text_only_tokens_input_ids))
@@ -1427,8 +1428,8 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
 
     if FLAGS.mask_non_entity_in_text and not is_training and dev_valid_pos_answers == 0:
         print('Dev example has no valid positive instances.')
-        return []
-    return features
+        return [], None
+    return features, None
 
 
 # A special token in NQ is made of non-space chars enclosed in square brackets.
@@ -1484,9 +1485,9 @@ class CreateTFExampleFn(object):
     nq_examples = read_nq_entry(example, self.is_training)
     input_features = []
     for nq_example in nq_examples:
-      input_features.extend(
-          convert_single_example(nq_example, self.tokenizer, self.apr_obj, self.shortest_path_obj,
-                                 self.is_training, pretrain_file))
+      features, stat_counts = convert_single_example(nq_example, self.tokenizer, self.apr_obj, self.shortest_path_obj,
+                                                self.is_training, pretrain_file)
+      input_features.extend(features)
 
     for input_feature in input_features:
       input_feature.example_index = int(example["id"])

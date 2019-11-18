@@ -135,8 +135,9 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
     if answer_seeds_found:
       break
     seeds = list(objects)
-  
-  print('Answer seeds found' +str(answer_seeds_found))
+
+  if FLAGS.verbose_logging:
+    print('Answer seeds found' +str(answer_seeds_found))
   num_hops = i+1
   path = []
   for object in answer_seeds_found:
@@ -149,7 +150,9 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
           parent = parent[0]
           rel = rel_dict[(parent, object)]
           path[i].append((object, rel, parent))
-  print(path)
+  if FLAGS.verbose_logging:
+    print(path)
+
   return path
 
 def get_fact_score(extracted_scores,
