@@ -92,7 +92,7 @@ class ShortestPath(object):
 
         return extracted_ents, extracted_scores
 
-    def get_augmented_facts(path, entity_names, augmentation_type='None'):
+    def get_augmented_facts(self, path, entity_names, augmentation_type=None):
         augmented_path = []
         for single_path in path:
             for (obj_id, rel_id, subj_id) in single_path[1:]:
@@ -125,6 +125,7 @@ class ShortestPath(object):
         if FLAGS.verbose_logging:
             print('Question Entities')
             tf.logging.info('Question Entities')
+            print(question_entities)
             print(str([self.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids
                        ]))
             tf.logging.info(
@@ -136,6 +137,7 @@ class ShortestPath(object):
         if FLAGS.verbose_logging:
             print('Answer Entities')
             tf.logging.info('Answer Entities')
+            print(answer_entities)
             print(str([self.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids
                        ]))
             tf.logging.info(
@@ -164,7 +166,7 @@ class ShortestPath(object):
         #     question_seeds = question_seeds / question_seeds.sum()
 
         extracted_paths = csr_get_shortest_path(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=2)
-        augmented_facts = self.get_augmented_facts(extracted_paths, self.data.entity_names, augmentation_type='None')
+        augmented_facts = self.get_augmented_facts(extracted_paths, self.data.entity_names)
 
         if FLAGS.verbose_logging:
             print('Extracted facts: ')

@@ -26,6 +26,7 @@ import json
 import os
 import random
 import re
+import time 
 
 import enum
 
@@ -490,7 +491,6 @@ def create_example_from_jsonl(line):
   e = json.loads(line, object_pairs_hook=collections.OrderedDict)
   add_candidate_types_and_positions(e)
   annotation, annotated_idx, annotated_sa, annotated_sa_entities = get_first_annotation(e)
-
   # annotated_idx: index of the first annotated context, -1 if null.
   # annotated_sa: short answer start and end char offsets, (-1, -1) if null.
   question = {"input_text": e["question_text"], "entity_map": e["question_entity_map"]}
@@ -810,7 +810,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
 
 
   if FLAGS.use_shortest_path_facts:
-      print(answer.text)
+      #print(answer.text)
       facts = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True)
       if FLAGS.use_entity_markers:
           nl_facts = " . ".join([
@@ -822,39 +822,37 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
               str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
               for x in facts
           ])
-      return nl_facts
-
-
-  # Adding this check since empty seeds generate random facts
-  if seed_entities:
-    if FLAGS.use_random_fact_generator:
-        unique_facts = apr_obj.get_random_facts(
-            seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
-    else:
-        unique_facts = apr_obj.get_facts(
-            seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
-
-    facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
-    if FLAGS.verbose_logging:
-        #print("Sorted facts: ")
-        #print(str(facts[0:50]))
-        #tf.logging.info("Sorted facts: ")
-        #tf.logging.info(str(facts))
-        pass
-    if FLAGS.use_entity_markers:
-        nl_facts = " . ".join([
-            "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
-            for x in facts
-        ])
-    else:
-        nl_facts = " . ".join([
-            str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
-            for x in facts
-        ])
   else:
-    nl_facts = ""
+      # Adding this check since empty seeds generate random facts
+      if seed_entities:
+        if FLAGS.use_random_fact_generator:
+            unique_facts = apr_obj.get_random_facts(
+                seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
+        else:
+            unique_facts = apr_obj.get_facts(
+                seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
 
-  #print(nl_facts[0:1000])
+        facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
+        if FLAGS.verbose_logging:
+            #print("Sorted facts: ")
+            #print(str(facts[0:50]))
+            #tf.logging.info("Sorted facts: ")
+            #tf.logging.info(str(facts))
+            pass
+        if FLAGS.use_entity_markers:
+            nl_facts = " . ".join([
+                "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
+                for x in facts
+            ])
+        else:
+            nl_facts = " . ".join([
+                str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
+                for x in facts
+            ])
+      else:
+        nl_facts = ""
+
+  print(nl_facts[0:1000])
   # Tokening retrieved facts
   tok_to_orig_index = []
   tok_to_textmap_index = []
@@ -1116,7 +1114,11 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
             tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
         else:
             tok_end_position = len(all_doc_tokens) - 1
-
+    # if tok_start_position > tok_end_position : 
+    #     print(example.start_position, example.end_position)
+    #     print(tok_start_position, tok_end_position)
+    #     exit()
+    
     # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
     max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
     if FLAGS.augment_facts:
@@ -1204,6 +1206,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         fact_tokens = []
         answer_version = []
         ent_count = 0
+        feature_stats = {}
         for i in range(doc_span.length):
             split_token_index = doc_span.start + i
             token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
@@ -1258,8 +1261,9 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         anonymized_text_only_tokens.append("[SEP]")
         tmp_eval.append("[SEP]")
         segment_ids.append(1)
-
-        if FLAGS.mask_non_entity_in_text and contains_an_annotation and '[PAD]' in answer_version:
+        
+        print(FLAGS.mask_non_entity_in_text, contains_an_annotation , len(answer_version) , '[PAD]' in answer_version)
+        if FLAGS.mask_non_entity_in_text and contains_an_annotation and (len(answer_version)==0 or '[PAD]' in answer_version):
             continue
         elif FLAGS.mask_non_entity_in_text and contains_an_annotation:
             dev_valid_pos_answers += 1
@@ -1271,6 +1275,8 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
         if FLAGS.augment_facts:
+            print(example.questions[-1])
+            print(answer_version)
             aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj, shortest_path_obj,
                                                         tokenizer, example.question_entity_map[-1], example.answer,
@@ -1284,7 +1290,6 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 masked_text_tokens_with_facts.append(token)
                 fact_tokens.append(token)
                 segment_ids.append(1)
-
         tokens.append("[SEP]")
         text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")

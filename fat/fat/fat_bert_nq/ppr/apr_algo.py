@@ -110,13 +110,13 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
   answer_seeds_found = []
   for i in range(k_hop):
     # Slicing adjacency matrix to subgraph of all extracted entities
-    print(seeds)
+    # print(seeds)
     submat = adj_mat[:, seeds]
 
     # Extracting non-zero entity pairs
     row, col = submat.nonzero()
-    print(row)
-    print(col)
+    # print(row)
+    # print(col)
     objects = []
     for ii in range(row.shape[0]):
       obj_id = row[ii]
