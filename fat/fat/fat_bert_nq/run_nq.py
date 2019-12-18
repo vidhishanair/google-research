@@ -823,8 +823,8 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
               for x in facts
           ])
 
-      if fp is not None:
-        fp.write(nl_facts+"\n")
+      #if fp is not None:
+      #  fp.write(nl_facts+"\n")
   else:
       # Adding this check since empty seeds generate random facts
       if seed_entities:
@@ -1277,7 +1277,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
         if FLAGS.augment_facts:
-            pretrain_file.writ(example.questions[-1]+"\t"+" ".join(answer_version)+"\t")
+            #pretrain_file.write(example.questions[-1]+"\t"+" ".join(answer_version)+"\t")
             if FLAGS.verbose_logging:
                 print(example.questions[-1])
                 print(answer_version)
@@ -1285,6 +1285,10 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                                                         example.entity_list, apr_obj, shortest_path_obj,
                                                         tokenizer, example.question_entity_map[-1], example.answer,
                                                         example.ner_entity_list, example.doc_tokens, pretrain_file)
+            if len(aligned_facts_subtokens) == 0 :
+                if FLAGS.mask_non_entity_in_text and contains_an_annotation:
+                    dev_valid_pos_answers -= 1
+                continue
             max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
             for (index, token) in enumerate(aligned_facts_subtokens):
                 if index >= max_tokens_for_current_facts:

@@ -36,6 +36,12 @@ from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
 flags = tf.flags
 FLAGS = flags.FLAGS
 
+#flags.DEFINE_bool(
+#    'verbose_logging', False,
+#    'If true, all of the warnings related to data processing will be printed. '
+#    'A number of warnings are expected for a normal NQ evaluation.')
+
+
 
 class ShortestPath(object):
     """Shortest Path main lib which is used to wrap functions around Shortest Path algo."""
@@ -95,7 +101,10 @@ class ShortestPath(object):
     def get_augmented_facts(self, path, entity_names, augmentation_type=None):
         augmented_path = []
         for single_path in path:
-            for (obj_id, rel_id, subj_id) in single_path[1:]:
+            single_path = single_path[1:]
+            for (obj_id, rel_id, subj_id) in reversed(single_path):
+                if obj_id == subj_id:
+                    continue
                 subj_name = entity_names['e'][str(subj_id)]['name']
                 obj_name = entity_names['e'][str(obj_id)]['name'] if str(obj_id) != 'None' else 'None'
                 rel_name = entity_names['r'][str(rel_id)]['name'] if str(rel_id) != 'None' else 'None'
@@ -124,8 +133,8 @@ class ShortestPath(object):
         ]
         question_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids
                                      ])
-        if fp is not None:
-            fp.write(str(question_entities)+"\t"+question_entity_names+"\t")
+        #if fp is not None:
+        #    fp.write(str(question_entities)+"\t"+question_entity_names+"\t")
         if FLAGS.verbose_logging:
             print('Question Entities')
             tf.logging.info('Question Entities')
@@ -138,8 +147,8 @@ class ShortestPath(object):
             ]
         answer_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids
                                    ])
-        if fp is not None:
-            fp.write(str(answer_entities)+"\t"+answer_entity_names+"\t")
+        #if fp is not None:
+        #    fp.write(str(answer_entities)+"\t"+answer_entity_names+"\t")
         if FLAGS.verbose_logging:
             print('Answer Entities')
             tf.logging.info('Answer Entities')
@@ -179,9 +188,9 @@ class ShortestPath(object):
         return augmented_facts
 
 if __name__ == '__main__':
-    csr_data = ShortestPath(mode='dev', task_id=0, shard_id=0)
-    question_entities = ['Q321423', 'Q645938']
-    answer_entities = ['Q380095', 'Q275964', 'Q542816', 'Q938416', 'Q1291441', 'Q433059', 'Q309941', 'Q299689', 'Q359207', 'Q242586', 'Q348755', 'Q153262']
+    csr_data = ShortestPath(mode='train', task_id=0, shard_id=1)
+    question_entities = ['Q3232520', 'Q932586']
+    answer_entities = ['Q56146']
     #question_entities = ['Q954184', 'Q1046088']
     #answer_entities = ['Q869161']
     csr_data.get_shortest_path_facts(question_entities=question_entities, answer_entities=answer_entities,

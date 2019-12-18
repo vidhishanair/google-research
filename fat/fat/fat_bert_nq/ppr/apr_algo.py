@@ -108,9 +108,10 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
   answer_seeds = set(answer_seeds)
   parent_dict = {}
   answer_seeds_found = []
+  num_hops = 0
   for i in range(k_hop):
+    num_hops += 1
     # Slicing adjacency matrix to subgraph of all extracted entities
-    # print(seeds)
     submat = adj_mat[:, seeds]
 
     # Extracting non-zero entity pairs
@@ -121,14 +122,14 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
     for ii in range(row.shape[0]):
       obj_id = row[ii]
       subj_id = seeds[col[ii]]
-      # print('Processing link: '+str(subj_id)+" "+str(obj_id))
+      #print('Processing link: '+str(subj_id)+" "+str(obj_id))
       if obj_id in parent_dict:
-        if k_hop == parent_dict[obj_id][-1][1]:
-          parent_dict[obj_id].append((subj_id, k_hop))
-        else:
-          parent_dict[obj_id] = [(subj_id, k_hop)]
+        if i == parent_dict[obj_id][-1][1]:
+          parent_dict[obj_id].append((subj_id, i))
+        #else:
+        #  parent_dict[obj_id] = [(subj_id, i)]
       else:
-        parent_dict[obj_id] = [(subj_id, k_hop)]
+        parent_dict[obj_id] = [(subj_id,i)]
       objects.append(obj_id)
     objects = set(objects)
     answer_seeds_found = list(objects.intersection(answer_seeds))
@@ -138,18 +139,23 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
 
   if FLAGS.verbose_logging:
     print('Answer seeds found' +str(answer_seeds_found))
-  num_hops = i+1
   path = []
   for object in answer_seeds_found:
     path.append([(None, None, object)])
-
   for hop in range(num_hops):
+    new_paths = []
     for i in range(len(path)):
       object = path[i][-1][2]
-      for parent in parent_dict[object] : 
+      for idx, parent in enumerate(parent_dict[object]): 
           parent = parent[0]
           rel = rel_dict[(parent, object)]
-          path[i].append((object, rel, parent))
+          #path[i].append((object, rel, parent))
+          
+          item = path[i].copy()
+          item.append((object, rel, parent))
+          new_paths.append(item)
+    path = new_paths.copy()
+
   if FLAGS.verbose_logging:
     print(path)
 
