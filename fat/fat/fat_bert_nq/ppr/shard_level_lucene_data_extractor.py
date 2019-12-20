@@ -70,7 +70,17 @@ def extract_nq_data(nq_file, output_file):
     for line in lines:
         item = json.loads(line.decode("utf-8"))
         data[str(counter)] = item
-        op.write(str(item['example_id'])+"\t"+str(item['question_text'])+"\n")
+        doc_tokens = [token['token'] for token in item['document_tokens']]
+        gold_short_answers = []
+        for gold_label in item['annotations']:
+            for g in gold_label['short_answers']:
+              start_tok = g['start_token']
+              end_tok = g['end_token']
+              g_answer = doc_tokens[start_tok:end_tok]
+              gold_short_answers.append(" ".join(g_answer))
+
+        short_answer = " | ".join(gold_short_answers)
+        op.write(str(item['example_id'])+"\t"+str(item['question_text'])+"\t"+short_answer+"\n")
         if 'question_entity_map' in item.keys():
             entities.extend([ ent for k, v in item['question_entity_map'].items() for (ids, ent) in v ])
         for ann in item["annotations"]:
