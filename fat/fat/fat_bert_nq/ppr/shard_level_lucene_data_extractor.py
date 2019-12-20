@@ -134,30 +134,28 @@ def get_file_names(full_wiki, files_dir, output_dir, shard_level=False, mode=Non
         file_paths = {k: os.path.join(output_dir+"%s/"%(mode), v) for k, v in sharded_fnames.items()}
         file_paths['kb_fname'] =  os.path.join(files_dir, 'kb.sling')
     else:
-        file_paths = None
-        exit()
-        # sub_file_names = {
-        #     'ent2id_fname': 'csr_ent2id_sub.json.gz',
-        #     'id2ent_fname': 'csr_id2ent_sub.json.gz',
-        #     'rel2id_fname': 'csr_rel2id_sub.json.gz',
-        #     'rel_dict_fname': 'csr_rel_dict_sub.npz',
-        #     'kb_fname': 'kb.sling',
-        #     'entity_names_fname': 'csr_entity_names_sub.json.gz',
-        #     'adj_mat_fname': 'csr_adj_mat_sparse_matrix_sub.npz',
-        #     'facts_fname': 'facts_sub.tsv'
-        # }
-        # full_file_names = {
-        #     'ent2id_fname': 'csr_ent2id_full.json.gz',
-        #     'id2ent_fname': 'csr_id2ent_full.json.gz',
-        #     'rel2id_fname': 'csr_rel2id_full.json.gz',
-        #     'rel_dict_fname': 'csr_rel_dict_full.npz',
-        #     'kb_fname': 'kb.sling',
-        #     'entity_names_fname': 'csr_entity_names_full.json.gz',
-        #     'adj_mat_fname': 'csr_adj_mat_sparse_matrix_full.npz',
-        #     'facts_fname': 'facts_full.tsv'
-        # }
-        # files = full_file_names if full_wiki else sub_file_names
-        # file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
+        sub_file_names = {
+#             'ent2id_fname': 'csr_ent2id_sub.json.gz',
+#             'id2ent_fname': 'csr_id2ent_sub.json.gz',
+#             'rel2id_fname': 'csr_rel2id_sub.json.gz',
+#             'rel_dict_fname': 'csr_rel_dict_sub.npz',
+#             'kb_fname': 'kb.sling',
+#             'entity_names_fname': 'csr_entity_names_sub.json.gz',
+#             'adj_mat_fname': 'csr_adj_mat_sparse_matrix_sub.npz',
+            'facts_fname': 'facts_sub.tsv'
+        }
+        full_file_names = {
+#             'ent2id_fname': 'csr_ent2id_full.json.gz',
+#             'id2ent_fname': 'csr_id2ent_full.json.gz',
+#             'rel2id_fname': 'csr_rel2id_full.json.gz',
+#             'rel_dict_fname': 'csr_rel_dict_full.npz',
+#             'kb_fname': 'kb.sling',
+#             'entity_names_fname': 'csr_entity_names_full.json.gz',
+#             'adj_mat_fname': 'csr_adj_mat_sparse_matrix_full.npz',
+            'facts_fname': 'facts_full.tsv'
+        }
+        files = full_file_names if full_wiki else sub_file_names
+        file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
     return file_paths
 
 def create_and_save_csr_data(full_wiki, decompose_ppv, files_dir,
@@ -220,6 +218,10 @@ if __name__ == '__main__':
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
     apr = ApproximatePageRank()
+    create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
+                                                      decompose_ppv=FLAGS.decompose_ppv,
+                                                      files_dir=FLAGS.apr_files_dir,
+                                                      output_dir=FLAGS.output_data_dir)
     for mode in [FLAGS.split]:
         # Parse all shards in each mode
         # Currently sequentially, can be parallelized later
@@ -232,16 +234,16 @@ if __name__ == '__main__':
                 if nq_data is None:
                     print("No examples here")
                     continue
-                print("Size of all entities: %d", len(entities))
-                two_hop_entities = apr.get_khop_entities(entities, 2)
-                print("Size of two hop entities: %d", len(two_hop_entities))
-                # csr_data = CsrData()
-                create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
-                                                  decompose_ppv=FLAGS.decompose_ppv,
-                                                  files_dir=FLAGS.apr_files_dir,
-                                                  sub_entities=two_hop_entities,
-                                                  mode=mode,
-                                                  task_id=task_id,
-                                                  shard_id=shard_id,
-                                                  output_dir=FLAGS.output_data_dir)
+#                 print("Size of all entities: %d", len(entities))
+#                 two_hop_entities = apr.get_khop_entities(entities, 2)
+#                 print("Size of two hop entities: %d", len(two_hop_entities))
+#                 # csr_data = CsrData()
+#                 create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
+#                                                   decompose_ppv=FLAGS.decompose_ppv,
+#                                                   files_dir=FLAGS.apr_files_dir,
+#                                                   sub_entities=two_hop_entities,
+#                                                   mode=mode,
+#                                                   task_id=task_id,
+#                                                   shard_id=shard_id,
+#                                                   output_dir=FLAGS.output_data_dir)
 
