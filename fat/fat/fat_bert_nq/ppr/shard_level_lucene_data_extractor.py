@@ -155,7 +155,8 @@ def get_file_names(full_wiki, files_dir, output_dir, shard_level=False, mode=Non
             'facts_fname': 'facts_full.tsv'
         }
         files = full_file_names if full_wiki else sub_file_names
-        file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
+        file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()} 
+        file_paths['kb_fname'] =  os.path.join(files_dir, 'kb.sling')
     return file_paths
 
 def create_and_save_csr_data(full_wiki, decompose_ppv, files_dir,
@@ -192,8 +193,8 @@ def create_and_save_csr_data(full_wiki, decompose_ppv, files_dir,
     kb = sling_utils.get_kb(file_paths['kb_fname'])
 
     op = tf.gfile.Open(file_paths['facts_fname'], 'w')
-
-    sub_entities = {k:1 for k in sub_entities}
+    if sub_entities is not None:
+        sub_entities = {k:1 for k in sub_entities}
     count = 0
 
     tf.logging.info('Processing KB')
@@ -217,7 +218,7 @@ if __name__ == '__main__':
     print(FLAGS.apr_files_dir)
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
-    apr = ApproximatePageRank()
+    #apr = ApproximatePageRank()
     create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
                                                       decompose_ppv=FLAGS.decompose_ppv,
                                                       files_dir=FLAGS.apr_files_dir,
