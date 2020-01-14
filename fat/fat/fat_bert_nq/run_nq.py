@@ -811,7 +811,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
 
   if FLAGS.use_shortest_path_facts:
       #print(answer.text)
-      facts = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+      facts, num_hops = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
       if FLAGS.use_entity_markers:
           nl_facts = " . ".join([
               "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])

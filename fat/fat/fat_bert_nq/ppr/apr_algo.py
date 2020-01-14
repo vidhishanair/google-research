@@ -159,7 +159,7 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
   if FLAGS.verbose_logging:
     print(path)
 
-  return path
+  return path, num_hops
 
 def get_fact_score(extracted_scores,
                    subj,
