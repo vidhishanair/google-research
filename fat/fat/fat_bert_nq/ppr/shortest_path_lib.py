@@ -41,6 +41,10 @@ FLAGS = flags.FLAGS
 #    'If true, all of the warnings related to data processing will be printed. '
 #    'A number of warnings are expected for a normal NQ evaluation.')
 
+flags.DEFINE_integer(
+    "k_hop", 2,
+    "Num of hops for shortest path query")
+
 
 
 class ShortestPath(object):
@@ -176,7 +180,7 @@ class ShortestPath(object):
         #         question_seeds[x] = y
         #     question_seeds = question_seeds / question_seeds.sum()
 
-        extracted_paths, num_hops = csr_get_shortest_path(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=3)
+        extracted_paths, num_hops = csr_get_shortest_path(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=FLAGS.k_hop)
         augmented_facts = self.get_augmented_facts(extracted_paths, self.data.entity_names)
 
         if FLAGS.verbose_logging:
@@ -193,5 +197,5 @@ if __name__ == '__main__':
     answer_entities = ['Q56146']
     #question_entities = ['Q954184', 'Q1046088']
     #answer_entities = ['Q869161']
-        csr_data.get_shortest_path_facts(question_entities=question_entities, answer_entities=answer_entities,
+    csr_data.get_shortest_path_facts(question_entities=question_entities, answer_entities=answer_entities,
                                      passage_entities=[], seed_weighting=False)

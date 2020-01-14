@@ -808,7 +808,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
           print('Question seed entities: '+str(list(question_entities)))
       seed_entities.extend(list(question_entities))
 
-
+  num_hops = None
   if FLAGS.use_shortest_path_facts:
       #print(answer.text)
       facts, num_hops = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
@@ -867,7 +867,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
     tok_to_textmap_index.extend([i] * len(sub_tokens))
     tok_to_orig_index.extend([i] * len(sub_tokens))
     nl_fact_tokens.extend(sub_tokens)
-  return nl_fact_tokens
+  return nl_fact_tokens, num_hops
 
 #tp = open('dev_context_text.txt', 'a')
 #tfp = open('dev_context_text_facts.txt', 'a')
@@ -1177,6 +1177,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         anonymized_text_only_tokens = []
  
         tmp_eval = []
+        num_hops = None
 
         token_to_orig_map = {}
         token_is_max_context = {}
@@ -1281,7 +1282,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
             if FLAGS.verbose_logging:
                 print(example.questions[-1])
                 print(answer_version)
-            aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
+            aligned_facts_subtokens, num_hops = get_related_facts(doc_span, tok_to_textmap_index,
                                                         example.entity_list, apr_obj, shortest_path_obj,
                                                         tokenizer, example.question_entity_map[-1], example.answer,
                                                         example.ner_entity_list, example.doc_tokens, pretrain_file)
@@ -1424,7 +1425,8 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
             start_position=start_position,
             end_position=end_position,
             answer_text=answer_text,
-            answer_type=answer_type
+            answer_type=answer_type,
+            num_hops=num_hops
         )  # Added facts to is max context and token to orig?
         features.append(feature)
 
@@ -1519,9 +1521,13 @@ class CreateTFExampleFn(object):
         features["masked_text_tokens_mask"] = create_int_feature(input_feature.masked_text_tokens_mask)
         features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(input_feature.masked_text_tokens_with_facts_input_ids)
         features["masked_text_tokens_with_facts_mask"] = create_int_feature(input_feature.masked_text_tokens_with_facts_mask)
+
       if FLAGS.anonymize_entities:
         features["anonymized_text_only_tokens_input_ids"] = create_int_feature(input_feature.anonymized_text_only_tokens_input_ids)
         features["anonymized_text_only_tokens_mask"] = create_int_feature(input_feature.anonymized_text_only_tokens_mask)
+
+      if FLAGS.use_shortest_path_facts:
+        features["shortest_path_num_hops"] = create_int_feature(input_feature.num_hops)
 
 
       if self.is_training:
@@ -1565,7 +1571,8 @@ class InputFeatures(object):
                start_position=None,
                end_position=None,
                answer_text="",
-               answer_type=AnswerType.SHORT):
+               answer_type=AnswerType.SHORT,
+               num_hops=None):
     self.unique_id = unique_id
     self.example_index = example_index
     self.doc_span_index = doc_span_index
@@ -1587,6 +1594,7 @@ class InputFeatures(object):
     self.end_position = end_position
     self.answer_text = answer_text
     self.answer_type = answer_type
+    self.num_hops = num_hops
 
 
 def read_nq_examples(input_file, is_training):
@@ -1857,6 +1865,7 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       name_to_features["masked_text_tokens_with_facts_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_with_facts_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+
   if FLAGS.anonymize_entities:
       name_to_features["anonymized_text_only_tokens_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["anonymized_text_only_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
@@ -1865,6 +1874,9 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
       name_to_features["end_positions"] = tf.FixedLenFeature([], tf.int64)
       name_to_features["answer_types"] = tf.FixedLenFeature([], tf.int64)
+
+  if FLAGS.use_shortest_path_facts:
+      name_to_features["shortest_path_num_hops"] = tf.FixedLenFeature([], tf.int64)
 
   def _decode_record(record, name_to_features):
     """Decodes a record to a TensorFlow example."""
@@ -1951,6 +1963,9 @@ class FeatureWriter(object):
         features["anonymized_text_only_tokens_input_ids"] = create_int_feature(feature.anonymized_text_only_tokens_input_ids)
         features["anonymized_text_only_tokens_mask"] = create_int_feature(feature.anonymized_text_only_tokens_mask)
 
+    if FLAGS.use_shortest_path_facts:
+        features["shortest_path_num_hops"] = create_int_feature(feature.num_hops)
+
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
       features["end_positions"] = create_int_feature([feature.end_position])
@@ -2034,6 +2049,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
     token_map = example.features[unique_id]["token_map"].int64_list.value
     input_ids = example.features[unique_id]["input_ids"].int64_list.value
     masked_input_ids = []
+    num_hops = None
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
         masked_input_ids = example.features[unique_id]["text_only_input_ids"].int64_list.value
     if FLAGS.mask_non_entity_in_text and FLAGS.use_masked_text_only:
@@ -2042,6 +2058,8 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
         masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
     if FLAGS.anonymize_text:
         masked_input_ids = example[unique_id]["anonymized_text_only_tokens_input_ids"]
+    if FLAGS.use_shortest_path_facts:
+        num_hops = example[unique_id]["shortest_path_num_hops"]
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None
@@ -2153,6 +2171,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       "input_text": input_text,
       "masked_input_ids": masked_input_ids,
       "masked_input_text": masked_input_text,
+      "shortest_path_num_hops": num_hops,
   }
 
   # if FLAGS.write_pred_analysis:
