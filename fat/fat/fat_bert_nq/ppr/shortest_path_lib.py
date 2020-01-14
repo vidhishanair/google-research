@@ -188,7 +188,7 @@ class ShortestPath(object):
             print(str(augmented_facts))
             tf.logging.info('Extracted facts: ')
             tf.logging.info(str(augmented_facts))
-
+            print("Num hops: "+str(num_hops))
         return augmented_facts, num_hops
 
 if __name__ == '__main__':

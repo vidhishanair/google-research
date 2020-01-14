@@ -1403,7 +1403,9 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 answer_type = example.answer.type
 
             answer_text = " ".join(tokens[start_position:(end_position + 1)])
-
+        #if num_hops == 0:
+        #    print("How 0 when adding?")
+        #    break
         feature = InputFeatures(
             unique_id=-1,
             example_index=-1,
@@ -1527,7 +1529,7 @@ class CreateTFExampleFn(object):
         features["anonymized_text_only_tokens_mask"] = create_int_feature(input_feature.anonymized_text_only_tokens_mask)
 
       if FLAGS.use_shortest_path_facts:
-        features["shortest_path_num_hops"] = create_int_feature(input_feature.num_hops)
+        features["shortest_path_num_hops"] = create_int_feature([input_feature.num_hops])
 
 
       if self.is_training:
@@ -1964,7 +1966,7 @@ class FeatureWriter(object):
         features["anonymized_text_only_tokens_mask"] = create_int_feature(feature.anonymized_text_only_tokens_mask)
 
     if FLAGS.use_shortest_path_facts:
-        features["shortest_path_num_hops"] = create_int_feature(feature.num_hops)
+        features["shortest_path_num_hops"] = create_int_feature([feature.num_hops])
 
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
