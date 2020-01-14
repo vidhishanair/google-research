@@ -125,7 +125,7 @@ if __name__ == '__main__':
                     print("No examples here")
                     continue
                 print("Size of all entities: %d", len(entities))
-                two_hop_entities = apr.get_khop_entities(entities, 2)
+                two_hop_entities = apr.get_khop_entities(entities, 3)
                 print("Size of two hop entities: %d", len(two_hop_entities))
                 csr_data = CsrData()
                 csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
