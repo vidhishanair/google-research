@@ -2059,9 +2059,9 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
         masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
     if FLAGS.anonymize_entities:
-        masked_input_ids = example.features[unique_id]["anonymized_text_only_tokens_input_ids"]
+        masked_input_ids = example.features[unique_id]["anonymized_text_only_tokens_input_ids"].int64_list.value
     if FLAGS.use_shortest_path_facts:
-        num_hops = example.features[unique_id]["shortest_path_num_hops"]
+        num_hops = example.features[unique_id]["shortest_path_num_hops"].int64_list.value[0]
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None
