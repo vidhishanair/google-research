@@ -48,6 +48,9 @@ flags.DEFINE_string(
             "split", "train",
                 "Train and dev split to read from and write to. Accepted values: ['train', 'dev', 'test']"
                 )
+flags.DEFINE_integer(
+    "csr_num_hops", 2,
+    "Num of hops for csr creation")
 #flags.DEFINE_integer("task_id", 0,
 #                             "Train and dev shard to read from and write to.")
 #flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
@@ -125,7 +128,7 @@ if __name__ == '__main__':
                     print("No examples here")
                     continue
                 print("Size of all entities: %d", len(entities))
-                two_hop_entities = apr.get_khop_entities(entities, 2)
+                two_hop_entities = apr.get_khop_entities(entities, FLAGS.csr_num_hops)
                 print("Size of two hop entities: %d", len(two_hop_entities))
                 csr_data = CsrData()
                 csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,

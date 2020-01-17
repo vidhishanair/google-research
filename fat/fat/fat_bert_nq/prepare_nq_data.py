@@ -42,6 +42,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import time
 import os
 import random
 from bert import tokenization
@@ -104,6 +105,11 @@ def main(_):
                                                                 "txt"), 'w')
     else:
         pretrain_file = None
+
+    #pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
+    #                                                        FLAGS.split, FLAGS.task_id,
+    #                                                        FLAGS.shard_split_id,
+    #                                                        "txt"), 'w')
     print("Reading file %s", input_file)
     for example in nq_data_utils.get_nq_examples(input_file):
       for instance in creator_fn.process(example, pretrain_file):
@@ -117,6 +123,7 @@ def main(_):
       examples_processed += 1
       if FLAGS.max_examples > 0 and examples_processed >= FLAGS.max_examples:
         break
+      #time.sleep(5)
     print("Examples with correct context retained: %d of %d",
                     num_examples_with_correct_context, examples_processed)
     random.shuffle(instances)

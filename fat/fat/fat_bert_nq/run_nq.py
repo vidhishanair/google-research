@@ -26,6 +26,7 @@ import json
 import os
 import random
 import re
+import time 
 
 import enum
 
@@ -37,6 +38,9 @@ import numpy as np
 import tensorflow as tf
 
 import spacy
+
+from fat.fat_bert_nq.ppr.shortest_path_lib import ShortestPath
+
 nlp = spacy.load("en_core_web_lg")
 
 from fat.fat_bert_nq.ppr.apr_lib import ApproximatePageRank
@@ -137,6 +141,10 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_named_entities_to_filter", False,
     "Whether to use_ner_to_filter")
+flags.DEFINE_bool(
+    "use_shortest_path_facts", False,
+    "Whether to do shortest_path expt")
+
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -233,15 +241,15 @@ class AnswerType(enum.IntEnum):
   LONG = 4
 
 
-class Answer(collections.namedtuple("Answer", ["type", "text", "offset"])):
+class Answer(collections.namedtuple("Answer", ["type", "text", "offset", "entities"])):
   """Answer record.
 
   An Answer contains the type of the answer and possibly the text (for
   long) as well as the offset (for extractive).
   """
 
-  def __new__(cls, type_, text=None, offset=None):
-    return super(Answer, cls).__new__(cls, type_, text, offset)
+  def __new__(cls, type_, text=None, offset=None, entities=None):
+    return super(Answer, cls).__new__(cls, type_, text, offset, entities)
 
 
 class NqExample(object):
@@ -309,14 +317,22 @@ def get_first_annotation(e):
       idx = a["long_answer"]["candidate_index"]
       start_token = a["short_answers"][0]["start_token"]
       end_token = a["short_answers"][-1]["end_token"]
+
+      # entities from the entire SA span (cross check if this makes sense)
+      answer_entities = set()
+      for sa in a['short_answers']:
+          for start_idx in sa['entity_map'].keys():
+              for sub_span in sa['entity_map'][start_idx]:
+                  answer_entities.add(sub_span[1])
+
       return a, idx, (token_to_char_offset(e, idx, start_token),
-                      token_to_char_offset(e, idx, end_token) - 1)
+                      token_to_char_offset(e, idx, end_token) - 1), list(answer_entities)
 
   for a in positive_annotations:
     idx = a["long_answer"]["candidate_index"]
-    return a, idx, (-1, -1)
+    return a, idx, (-1, -1), []
 
-  return None, -1, (-1, -1)
+  return None, -1, (-1, -1), []
 
 
 def get_text_span(example, span):
@@ -474,8 +490,7 @@ def create_example_from_jsonl(line):
   """Creates an NQ example from a given line of JSON."""
   e = json.loads(line, object_pairs_hook=collections.OrderedDict)
   add_candidate_types_and_positions(e)
-  annotation, annotated_idx, annotated_sa = get_first_annotation(e)
-
+  annotation, annotated_idx, annotated_sa, annotated_sa_entities = get_first_annotation(e)
   # annotated_idx: index of the first annotated context, -1 if null.
   # annotated_sa: short answer start and end char offsets, (-1, -1) if null.
   question = {"input_text": e["question_text"], "entity_map": e["question_entity_map"]}
@@ -484,6 +499,7 @@ def create_example_from_jsonl(line):
       "span_text": "",
       "span_start": -1,
       "span_end": -1,
+      "sa_entities": [],
       "input_text": "long",
   }
 
@@ -500,6 +516,7 @@ def create_example_from_jsonl(line):
     answer["span_text"] = span_text[annotated_sa[0]:annotated_sa[1]]
     answer["span_start"] = annotated_sa[0]
     answer["span_end"] = annotated_sa[1]
+    answer["sa_entities"] = annotated_sa_entities
     expected_answer_text = get_text_span(
         e, {
             "start_token": annotation["short_answers"][0]["start_token"],
@@ -597,6 +614,7 @@ def make_nq_answer(contexts, answer):
   start = answer["span_start"]
   end = answer["span_end"]
   input_text = answer["input_text"]
+  sa_entities = answer["sa_entities"]
 
   if (answer["candidate_id"] == -1 or start >= len(contexts) or
       end > len(contexts)):
@@ -612,7 +630,7 @@ def make_nq_answer(contexts, answer):
   else:
     answer_type = AnswerType.SHORT
 
-  return Answer(answer_type, text=contexts[start:end], offset=start)
+  return Answer(answer_type, text=contexts[start:end], offset=start, entities=sa_entities)
 
 
 def read_nq_entry(entry, is_training):
@@ -695,10 +713,12 @@ def convert_examples_to_features(examples, tokenizer, is_training, output_fn):
   mode = 'train' if is_training else 'dev'
   apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
                                 shard_id=FLAGS.shard_split_id)
+  shortest_path_obj = ShortestPath(mode=mode, task_id=FLAGS.task_id,
+                                shard_id=FLAGS.shard_split_id)
 
   for example in examples:
     example_index = example.example_id
-    features = convert_single_example(example, tokenizer, apr_obj, is_training)
+    features, stats = convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_training)
     num_spans_to_ids[len(features)].append(example.qas_id)
 
     for feature in features:
@@ -745,8 +765,8 @@ def check_is_max_context(doc_spans, cur_span_index, position):
   return cur_span_index == best_span_index
 
 
-def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
-                      tokenizer, question_entity_map=None, ner_entity_list=None):
+def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, shortest_path_obj,
+                      tokenizer, question_entity_map, answer=None, ner_entity_list=None, all_doc_tokens=None, fp=None):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -771,51 +791,71 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 
   sub_list = entity_list[start_index:end_index + 1]
   sub_ner_list = ner_entity_list[start_index:end_index+1]
-  #if FLAGS.use_named_entities_to_filter:
-  seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
-  print(seed_entities)
-  #else:
-  seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
-  print(seed_entities)
+  sub_tokens = all_doc_tokens[start_index:end_index + 1]
+
+  question_entities = set()
+  for start_idx in question_entity_map.keys():
+      for sub_span in question_entity_map[start_idx]:
+          question_entities.add(sub_span[1])
+
+  if FLAGS.use_named_entities_to_filter:
+      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
+  else:
+      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
 
   if FLAGS.use_question_entities:
-      question_entities = set()
-      for start_idx in question_entity_map.keys():
-          for sub_span in question_entity_map[start_idx]:
-              question_entities.add(sub_span[1])
       if FLAGS.verbose_logging:
           print('Question seed entities: '+str(list(question_entities)))
       seed_entities.extend(list(question_entities))
 
-  # Adding this check since empty seeds generate random facts
-  if seed_entities:
-    if FLAGS.use_random_fact_generator:
-        unique_facts = apr_obj.get_random_facts(
-            seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
-    else:
-        unique_facts = apr_obj.get_facts(
-            seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
+  num_hops = None
+  if FLAGS.use_shortest_path_facts:
+      #print(answer.text)
+      facts, num_hops = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+      if FLAGS.use_entity_markers:
+          nl_facts = " . ".join([
+              "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
+              for x in facts
+          ])
+      else:
+          nl_facts = " . ".join([
+              str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
+              for x in facts
+          ])
 
-    facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
-    if FLAGS.verbose_logging:
-        #print("Sorted facts: ")
-        #print(str(facts[0:50]))
-        #tf.logging.info("Sorted facts: ")
-        #tf.logging.info(str(facts))
-        pass
-    if FLAGS.use_entity_markers:
-        nl_facts = " . ".join([
-            "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
-            for x in facts
-        ])
-    else:
-        nl_facts = " . ".join([
-            str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
-            for x in facts
-        ])
+      #if fp is not None:
+      #  fp.write(nl_facts+"\n")
   else:
-    nl_facts = ""
+      # Adding this check since empty seeds generate random facts
+      if seed_entities:
+        if FLAGS.use_random_fact_generator:
+            unique_facts = apr_obj.get_random_facts(
+                seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
+        else:
+            unique_facts = apr_obj.get_facts(
+                seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
 
+        facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
+        if FLAGS.verbose_logging:
+            #print("Sorted facts: ")
+            #print(str(facts[0:50]))
+            #tf.logging.info("Sorted facts: ")
+            #tf.logging.info(str(facts))
+            pass
+        if FLAGS.use_entity_markers:
+            nl_facts = " . ".join([
+                "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
+                for x in facts
+            ])
+        else:
+            nl_facts = " . ".join([
+                str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
+                for x in facts
+            ])
+      else:
+        nl_facts = ""
+
+  print(nl_facts[0:1000])
   # Tokening retrieved facts
   tok_to_orig_index = []
   tok_to_textmap_index = []
@@ -827,7 +867,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
     tok_to_textmap_index.extend([i] * len(sub_tokens))
     tok_to_orig_index.extend([i] * len(sub_tokens))
     nl_fact_tokens.extend(sub_tokens)
-  return nl_fact_tokens
+  return nl_fact_tokens, num_hops
 
 #tp = open('dev_context_text.txt', 'a')
 #tfp = open('dev_context_text_facts.txt', 'a')
@@ -1036,7 +1076,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
 #
 #   return features
 
-def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file=None):
+def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_training, pretrain_file=None):
     """Converts a single NqExample into a list of InputFeatures."""
     tok_to_orig_index = []
     tok_to_textmap_index = []
@@ -1077,7 +1117,11 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
         else:
             tok_end_position = len(all_doc_tokens) - 1
-
+    # if tok_start_position > tok_end_position : 
+    #     print(example.start_position, example.end_position)
+    #     print(tok_start_position, tok_end_position)
+    #     exit()
+    
     # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
     max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
     if FLAGS.augment_facts:
@@ -1133,6 +1177,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         anonymized_text_only_tokens = []
  
         tmp_eval = []
+        num_hops = None
 
         token_to_orig_map = {}
         token_is_max_context = {}
@@ -1165,6 +1210,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         fact_tokens = []
         answer_version = []
         ent_count = 0
+        feature_stats = {}
         for i in range(doc_span.length):
             split_token_index = doc_span.start + i
             token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
@@ -1219,8 +1265,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
         anonymized_text_only_tokens.append("[SEP]")
         tmp_eval.append("[SEP]")
         segment_ids.append(1)
-
-        if FLAGS.mask_non_entity_in_text and contains_an_annotation and '[PAD]' in answer_version:
+        
+        if FLAGS.mask_non_entity_in_text and contains_an_annotation and (len(answer_version)==0 or '[PAD]' in answer_version):
             continue
         elif FLAGS.mask_non_entity_in_text and contains_an_annotation:
             dev_valid_pos_answers += 1
@@ -1228,14 +1274,22 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             pass
         # print(" ".join(tokens)+"\n"+" ".join(masked_text_tokens)+"\n"+" ".join(tmp_eval)+"\n\n")
         valid_count += 1
-        print(" ".join(text_tokens).replace(" ##", ""))
+        #print(" ".join(text_tokens).replace(" ##", ""))
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
         if FLAGS.augment_facts:
-            aligned_facts_subtokens = get_related_facts(doc_span, tok_to_textmap_index,
-                                                        example.entity_list, apr_obj,
-                                                        tokenizer, example.question_entity_map[-1],
-                                                        example.ner_entity_list)
+            #pretrain_file.write(example.questions[-1]+"\t"+" ".join(answer_version)+"\t")
+            if FLAGS.verbose_logging:
+                print(example.questions[-1])
+                print(answer_version)
+            aligned_facts_subtokens, num_hops = get_related_facts(doc_span, tok_to_textmap_index,
+                                                        example.entity_list, apr_obj, shortest_path_obj,
+                                                        tokenizer, example.question_entity_map[-1], example.answer,
+                                                        example.ner_entity_list, example.doc_tokens, pretrain_file)
+            if len(aligned_facts_subtokens) == 0 :
+                if FLAGS.mask_non_entity_in_text and contains_an_annotation:
+                    dev_valid_pos_answers -= 1
+                continue
             max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
             for (index, token) in enumerate(aligned_facts_subtokens):
                 if index >= max_tokens_for_current_facts:
@@ -1245,7 +1299,6 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 masked_text_tokens_with_facts.append(token)
                 fact_tokens.append(token)
                 segment_ids.append(1)
-
         tokens.append("[SEP]")
         text_only_tokens.append("[SEP]")
         masked_text_tokens.append("[SEP]")
@@ -1304,6 +1357,7 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             assert len(masked_text_tokens_mask) == FLAGS.max_seq_length
             assert len(masked_text_tokens_with_facts_input_ids) == FLAGS.max_seq_length
             assert len(masked_text_tokens_with_facts_mask) == FLAGS.max_seq_length
+
         if FLAGS.anonymize_entities:
             anonymized_text_only_tokens_mask = [0 if item == 0 else 1 for item in anonymized_text_only_tokens_input_ids]
             padding = [0] * (FLAGS.max_seq_length - len(anonymized_text_only_tokens_input_ids))
@@ -1349,7 +1403,9 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 answer_type = example.answer.type
 
             answer_text = " ".join(tokens[start_position:(end_position + 1)])
-
+        #if num_hops == 0:
+        #    print("How 0 when adding?")
+        #    break
         feature = InputFeatures(
             unique_id=-1,
             example_index=-1,
@@ -1371,7 +1427,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             start_position=start_position,
             end_position=end_position,
             answer_text=answer_text,
-            answer_type=answer_type
+            answer_type=answer_type,
+            num_hops=num_hops
         )  # Added facts to is max context and token to orig?
         features.append(feature)
 
@@ -1383,8 +1440,8 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
 
     if FLAGS.mask_non_entity_in_text and not is_training and dev_valid_pos_answers == 0:
         print('Dev example has no valid positive instances.')
-        return []
-    return features
+        return [], None
+    return features, None
 
 
 # A special token in NQ is made of non-space chars enclosed in square brackets.
@@ -1432,15 +1489,17 @@ class CreateTFExampleFn(object):
     mode = 'train' if is_training else 'dev'
     self.apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
                                        shard_id=FLAGS.shard_split_id)
+    self.shortest_path_obj = ShortestPath(mode=mode, task_id=FLAGS.task_id,
+                                       shard_id=FLAGS.shard_split_id)
 
   def process(self, example, pretrain_file=None):
     """Coverts an NQ example in a list of serialized tf examples."""
     nq_examples = read_nq_entry(example, self.is_training)
     input_features = []
     for nq_example in nq_examples:
-      input_features.extend(
-          convert_single_example(nq_example, self.tokenizer, self.apr_obj,
-                                 self.is_training, pretrain_file))
+      features, stat_counts = convert_single_example(nq_example, self.tokenizer, self.apr_obj, self.shortest_path_obj,
+                                                self.is_training, pretrain_file)
+      input_features.extend(features)
 
     for input_feature in input_features:
       input_feature.example_index = int(example["id"])
@@ -1464,9 +1523,13 @@ class CreateTFExampleFn(object):
         features["masked_text_tokens_mask"] = create_int_feature(input_feature.masked_text_tokens_mask)
         features["masked_text_tokens_with_facts_input_ids"] = create_int_feature(input_feature.masked_text_tokens_with_facts_input_ids)
         features["masked_text_tokens_with_facts_mask"] = create_int_feature(input_feature.masked_text_tokens_with_facts_mask)
+
       if FLAGS.anonymize_entities:
         features["anonymized_text_only_tokens_input_ids"] = create_int_feature(input_feature.anonymized_text_only_tokens_input_ids)
         features["anonymized_text_only_tokens_mask"] = create_int_feature(input_feature.anonymized_text_only_tokens_mask)
+
+      if FLAGS.use_shortest_path_facts:
+        features["shortest_path_num_hops"] = create_int_feature([input_feature.num_hops])
 
 
       if self.is_training:
@@ -1510,7 +1573,8 @@ class InputFeatures(object):
                start_position=None,
                end_position=None,
                answer_text="",
-               answer_type=AnswerType.SHORT):
+               answer_type=AnswerType.SHORT,
+               num_hops=None):
     self.unique_id = unique_id
     self.example_index = example_index
     self.doc_span_index = doc_span_index
@@ -1532,6 +1596,7 @@ class InputFeatures(object):
     self.end_position = end_position
     self.answer_text = answer_text
     self.answer_type = answer_type
+    self.num_hops = num_hops
 
 
 def read_nq_examples(input_file, is_training):
@@ -1802,6 +1867,7 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       name_to_features["masked_text_tokens_with_facts_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["masked_text_tokens_with_facts_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
+
   if FLAGS.anonymize_entities:
       name_to_features["anonymized_text_only_tokens_input_ids"] = tf.FixedLenFeature([seq_length], tf.int64)
       name_to_features["anonymized_text_only_tokens_mask"] = tf.FixedLenFeature([seq_length], tf.int64)
@@ -1810,6 +1876,9 @@ def input_fn_builder(input_file, seq_length, is_training, drop_remainder):
       name_to_features["start_positions"] = tf.FixedLenFeature([], tf.int64)
       name_to_features["end_positions"] = tf.FixedLenFeature([], tf.int64)
       name_to_features["answer_types"] = tf.FixedLenFeature([], tf.int64)
+
+  if FLAGS.use_shortest_path_facts:
+      name_to_features["shortest_path_num_hops"] = tf.FixedLenFeature([], tf.int64)
 
   def _decode_record(record, name_to_features):
     """Decodes a record to a TensorFlow example."""
@@ -1896,6 +1965,9 @@ class FeatureWriter(object):
         features["anonymized_text_only_tokens_input_ids"] = create_int_feature(feature.anonymized_text_only_tokens_input_ids)
         features["anonymized_text_only_tokens_mask"] = create_int_feature(feature.anonymized_text_only_tokens_mask)
 
+    if FLAGS.use_shortest_path_facts:
+        features["shortest_path_num_hops"] = create_int_feature([feature.num_hops])
+
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
       features["end_positions"] = create_int_feature([feature.end_position])
@@ -1979,6 +2051,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
     token_map = example.features[unique_id]["token_map"].int64_list.value
     input_ids = example.features[unique_id]["input_ids"].int64_list.value
     masked_input_ids = []
+    num_hops = None
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
         masked_input_ids = example.features[unique_id]["text_only_input_ids"].int64_list.value
     if FLAGS.mask_non_entity_in_text and FLAGS.use_masked_text_only:
@@ -1987,6 +2060,8 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
         masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
     if FLAGS.anonymize_entities:
         masked_input_ids = example[unique_id]["anonymized_text_only_tokens_input_ids"]
+    if FLAGS.use_shortest_path_facts:
+        num_hops = example[unique_id]["shortest_path_num_hops"]
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None
@@ -2098,6 +2173,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
       "input_text": input_text,
       "masked_input_ids": masked_input_ids,
       "masked_input_text": masked_input_text,
+      "shortest_path_num_hops": num_hops,
   }
 
   # if FLAGS.write_pred_analysis:
