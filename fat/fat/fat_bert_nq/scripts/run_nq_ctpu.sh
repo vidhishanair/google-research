@@ -14,8 +14,7 @@ NQ_DATA="gs://natural_questions/v1.0"
 LEARNING_RATE=3e-5
 NUM_EPOCHS=1
 SEED=1
-OUTPUT="gs://fat_storage/downweight_incoming_kb_sharded_kb_data_mc48_alpha${ALPHA}_mqseq${SEQ_LEN}_unk${UNK}/output_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED.bs32"
-
+OUTPUT="gs://fat_storage/ner_filtered_downweighted_masking_anonymized_sharded_kb_data_mc48_alpha${ALPHA}_mqseq${SEQ_LEN}_unk${UNK}/output_lr$LEARNING_RATE.epoch$NUM_EPOCHS.seed$SEED.bs32"
 
 #--init_checkpoint=$BERT_BASE_DIR/bert_model.ckpt \
 python3 -m fat.fat_bert_nq.run_nq \
@@ -23,7 +22,7 @@ python3 -m fat.fat_bert_nq.run_nq \
     --is_training=True \
     --verbose_logging=False \
     --bert_config_file=$BERT_BASE_DIR/bert_config.json \
-    --init_checkpoint=$OUTPUT/model.ckpt-34938 \
+    --init_checkpoint=$BERT_BASE_DIR/bert_model.ckpt \
     --output_dir=$OUTPUT \
     --eval_data_path=$DATA/dev \
     --train_precomputed_file=$DATA/train/*.tf-record \
@@ -35,7 +34,7 @@ python3 -m fat.fat_bert_nq.run_nq \
     --doc_stride=128 \
     --max_query_length=64 \
     --train_batch_size=32 \
-    --do_train=False \
+    --do_train=True \
     --do_predict=True \
     --learning_rate=$LEARNING_RATE \
     --num_train_epochs=$NUM_EPOCHS \

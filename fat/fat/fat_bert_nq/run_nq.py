@@ -1985,7 +1985,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
         masked_input_ids = example.features[unique_id]["masked_text_tokens_input_ids"].int64_list.value
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
         masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
-    if FLAGS.anonymize_text:
+    if FLAGS.anonymize_entities:
         masked_input_ids = example[unique_id]["anonymized_text_only_tokens_input_ids"]
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
@@ -2177,7 +2177,7 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results, tokenizer=None
   summary_dict = {}
   nq_pred_dict = {}
   for e in examples:
-    if FLAGS.mask_non_entity_in_text:
+    if True or FLAGS.mask_non_entity_in_text:
         if len(list(e.features.keys())) == 0 and len(list(e.results)) == 0:
             continue
     summary = compute_predictions(e, tokenizer)
