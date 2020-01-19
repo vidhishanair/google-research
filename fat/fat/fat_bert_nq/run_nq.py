@@ -1407,7 +1407,9 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 answer_type = example.answer.type
 
             answer_text = " ".join(tokens[start_position:(end_position + 1)])
-
+        #if num_hops == 0:
+        #    print("How 0 when adding?")
+        #    break
         feature = InputFeatures(
             unique_id=-1,
             example_index=-1,
@@ -1531,7 +1533,7 @@ class CreateTFExampleFn(object):
         features["anonymized_text_only_tokens_mask"] = create_int_feature(input_feature.anonymized_text_only_tokens_mask)
 
       if FLAGS.use_shortest_path_facts:
-        features["shortest_path_num_hops"] = create_int_feature(input_feature.num_hops)
+        features["shortest_path_num_hops"] = create_int_feature([input_feature.num_hops])
 
 
       if self.is_training:
@@ -1968,7 +1970,7 @@ class FeatureWriter(object):
         features["anonymized_text_only_tokens_mask"] = create_int_feature(feature.anonymized_text_only_tokens_mask)
 
     if FLAGS.use_shortest_path_facts:
-        features["shortest_path_num_hops"] = create_int_feature(feature.num_hops)
+        features["shortest_path_num_hops"] = create_int_feature([feature.num_hops])
 
     if self.is_training:
       features["start_positions"] = create_int_feature([feature.start_position])
@@ -2060,10 +2062,10 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
         masked_input_ids = example.features[unique_id]["masked_text_tokens_input_ids"].int64_list.value
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_and_facts:
         masked_input_ids = example.features[unique_id]["masked_text_tokens_with_facts_input_ids"].int64_list.value
-    if FLAGS.anonymize_text:
-        masked_input_ids = example[unique_id]["anonymized_text_only_tokens_input_ids"]
+    if FLAGS.anonymize_entities:
+        masked_input_ids = example.features[unique_id]["anonymized_text_only_tokens_input_ids"].int64_list.value
     if FLAGS.use_shortest_path_facts:
-        num_hops = example[unique_id]["shortest_path_num_hops"]
+        num_hops = example.features[unique_id]["shortest_path_num_hops"].int64_list.value[0]
     start_indexes = get_best_indexes(result["start_logits"], n_best_size)
     end_indexes = get_best_indexes(result["end_logits"], n_best_size)
     summary = None
@@ -2255,7 +2257,7 @@ def compute_pred_dict(candidates_dict, dev_features, raw_results, tokenizer=None
   summary_dict = {}
   nq_pred_dict = {}
   for e in examples:
-    if FLAGS.mask_non_entity_in_text:
+    if True or FLAGS.mask_non_entity_in_text:
         if len(list(e.features.keys())) == 0 and len(list(e.results)) == 0:
             continue
     summary = compute_predictions(e, tokenizer)
