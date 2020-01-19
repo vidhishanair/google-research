@@ -144,7 +144,9 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_shortest_path_facts", False,
     "Whether to do shortest_path expt")
-
+flags.DEFINE_bool(
+    "shuffle_shortest_path_facts", False,
+    "Whether to do shuffle hortest_path expt")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -812,6 +814,8 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
   if FLAGS.use_shortest_path_facts:
       #print(answer.text)
       facts, num_hops = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+      if FLAGS.shuffle_shortest_path_facts:
+          random.shuffle(facts)
       if FLAGS.use_entity_markers:
           nl_facts = " . ".join([
               "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
@@ -2042,6 +2046,7 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
   predictions = []
   n_best_size = 10
   max_answer_length = 30
+  num_hops = None
 
   for unique_id, result in example.results.items():
     if unique_id not in example.features:
@@ -2049,7 +2054,6 @@ def compute_predictions(example, tokenizer = None, pred_fp = None):
     token_map = example.features[unique_id]["token_map"].int64_list.value
     input_ids = example.features[unique_id]["input_ids"].int64_list.value
     masked_input_ids = []
-    num_hops = None
     if FLAGS.mask_non_entity_in_text and FLAGS.use_text_only:
         masked_input_ids = example.features[unique_id]["text_only_input_ids"].int64_list.value
     if FLAGS.mask_non_entity_in_text and FLAGS.use_masked_text_only:
