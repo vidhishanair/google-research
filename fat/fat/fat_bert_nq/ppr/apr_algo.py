@@ -29,6 +29,10 @@ flags.DEFINE_string(
     'fact_score_type', 'FREQ_SCORE',
     'Scoring method for facts. One in ["FREQ_SCORE", "MIN_SCORE"]')
 
+flags.DEFINE_bool(
+  "add_random_question_facts_to_shortest_path", False,
+  "Whether to retreive random facts "
+  "models and False for cased models.")
 
 def csr_personalized_pagerank(seeds, adj_mat, alpha, max_iter=20):
   """Return the PPR Scores vector for the given seed and adjacency matrix.
@@ -157,6 +161,15 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
           item.append((object, rel, parent))
           new_paths.append(item)
     path = new_paths.copy()
+
+  if FLAGS.add_random_question_facts_to_shortest_path:
+    submat = adj_mat[:, question_seeds]
+    row, col = submat.nonzero()
+    for ii in range(row.shape[0]):
+      obj_id = row[ii]
+      subj_id = seeds[col[ii]]
+      rel_id = rel_dict[(subj_id, obj_id)]
+      path.append((subj_id, rel_id, obj_id))
 
   if FLAGS.verbose_logging:
     print(path)
