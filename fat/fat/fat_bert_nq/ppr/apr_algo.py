@@ -109,8 +109,9 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
   parent_dict = {}
   answer_seeds_found = []
   num_hops = 0
+  tmp_num_hops = 0
   for i in range(k_hop):
-    num_hops += 1
+    tmp_num_hops += 1
     # Slicing adjacency matrix to subgraph of all extracted entities
     submat = adj_mat[:, seeds]
 
@@ -134,6 +135,7 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
     objects = set(objects)
     answer_seeds_found = list(objects.intersection(answer_seeds))
     if answer_seeds_found:
+      num_hops = tmp_num_hops
       break
     seeds = list(objects)
 
