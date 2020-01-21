@@ -857,7 +857,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
       else:
         nl_facts = ""
 
-  print(nl_facts[0:1000])
+  #print(nl_facts[0:1000])
   # Tokening retrieved facts
   tok_to_orig_index = []
   tok_to_textmap_index = []
@@ -1412,9 +1412,9 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 answer_type = example.answer.type
 
             answer_text = " ".join(tokens[start_position:(end_position + 1)])
-        #if num_hops == 0:
-        #    print("How 0 when adding?")
-        #    break
+        if num_hops == 0:
+            print("How 0 when adding?")
+            exit()
         feature = InputFeatures(
             unique_id=-1,
             example_index=-1,
