@@ -162,15 +162,14 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
           new_paths.append(item)
     path = new_paths.copy()
 
-  if FLAGS.add_random_question_facts_to_shortest_path:
+  if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
     submat = adj_mat[:, question_seeds]
     row, col = submat.nonzero()
-    for ii in range(row.shape[0]):
+    for ii in range(min(row.shape[0],10)):
       obj_id = row[ii]
-      subj_id = seeds[col[ii]]
+      subj_id = question_seeds[col[ii]]
       rel_id = rel_dict[(subj_id, obj_id)]
-      path.append((subj_id, rel_id, obj_id))
-
+      path.append([(), (subj_id, rel_id, obj_id)])
   if FLAGS.verbose_logging:
     print(path)
 
