@@ -147,6 +147,9 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "shuffle_shortest_path_facts", False,
     "Whether to do shuffle hortest_path expt")
+flags.DEFINE_bool(
+    "use_rw_facts_in_shortest_path", False,
+    "Whether to do shuffle hortest_path expt")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -768,7 +771,8 @@ def check_is_max_context(doc_spans, cur_span_index, position):
 
 
 def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, shortest_path_obj,
-                      tokenizer, question_entity_map, answer=None, ner_entity_list=None, all_doc_tokens=None, fp=None):
+                      tokenizer, question_entity_map, answer=None, ner_entity_list=None,
+                      all_doc_tokens=None, fp=None, override_shortest_path=False):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -811,7 +815,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
       seed_entities.extend(list(question_entities))
 
   num_hops = None
-  if FLAGS.use_shortest_path_facts:
+  if FLAGS.use_shortest_path_facts and not override_shortest_path:
       #print(answer.text)
       facts, num_hops = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
       if FLAGS.shuffle_shortest_path_facts:
@@ -840,12 +844,6 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
                 seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
 
         facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
-        if FLAGS.verbose_logging:
-            #print("Sorted facts: ")
-            #print(str(facts[0:50]))
-            #tf.logging.info("Sorted facts: ")
-            #tf.logging.info(str(facts))
-            pass
         if FLAGS.use_entity_markers:
             nl_facts = " . ".join([
                 "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
@@ -1294,6 +1292,13 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 if FLAGS.mask_non_entity_in_text and contains_an_annotation:
                     dev_valid_pos_answers -= 1
                 continue
+            if FLAGS.use_rw_facts_in_shortest_path:
+                aligned_facts_subtokens, num_hops = get_related_facts(doc_span, tok_to_textmap_index,
+                                                                      example.entity_list, apr_obj, shortest_path_obj,
+                                                                      tokenizer, example.question_entity_map[-1], example.answer,
+                                                                      example.ner_entity_list, example.doc_tokens, pretrain_file,
+                                                                      override_shortest_path=True)
+
             max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
             for (index, token) in enumerate(aligned_facts_subtokens):
                 if index >= max_tokens_for_current_facts:
