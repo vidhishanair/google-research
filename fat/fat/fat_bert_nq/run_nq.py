@@ -1293,12 +1293,14 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                     dev_valid_pos_answers -= 1
                 continue
             if FLAGS.use_rw_facts_in_shortest_path:
-                aligned_facts_subtokens, num_hops = get_related_facts(doc_span, tok_to_textmap_index,
+                aligned_facts_subtokens, _ = get_related_facts(doc_span, tok_to_textmap_index,
                                                                       example.entity_list, apr_obj, shortest_path_obj,
                                                                       tokenizer, example.question_entity_map[-1], example.answer,
                                                                       example.ner_entity_list, example.doc_tokens, pretrain_file,
                                                                       override_shortest_path=True)
-
+                if FLAGS.verbose_logging:
+                    print("Newly aligned Facts")
+                    print(aligned_facts_subtokens)
             max_tokens_for_current_facts = max_tokens_for_doc - doc_span.length
             for (index, token) in enumerate(aligned_facts_subtokens):
                 if index >= max_tokens_for_current_facts:
