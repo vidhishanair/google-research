@@ -150,6 +150,8 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_rw_facts_in_shortest_path", False,
     "Whether to do shuffle hortest_path expt")
+flags.DEFINE_integer("num_facts_limit", -1,
+                     "Limiting number of facts")
 
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
 
@@ -844,6 +846,8 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
                 seed_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
 
         facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
+        if FLAGS.num_facts_limit > 0:
+            facts = fact[0:FLAGS.num_facts_limit]
         if FLAGS.use_entity_markers:
             nl_facts = " . ".join([
                 "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])

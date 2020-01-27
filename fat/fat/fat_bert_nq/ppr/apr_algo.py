@@ -165,7 +165,10 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
   if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
     submat = adj_mat[:, question_seeds]
     row, col = submat.nonzero()
-    for ii in range(min(row.shape[0],10)):
+    limit = 10
+    if FLAGS.num_facts_limit > 0:
+        limit = FLAGS.num_facts_limit
+    for ii in range(min(row.shape[0],limit)):
       obj_id = row[ii]
       subj_id = question_seeds[col[ii]]
       rel_id = rel_dict[(subj_id, obj_id)]
