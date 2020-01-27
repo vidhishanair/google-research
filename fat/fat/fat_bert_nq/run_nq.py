@@ -847,7 +847,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
 
         facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
         if FLAGS.num_facts_limit > 0:
-            facts = fact[0:FLAGS.num_facts_limit]
+            facts = facts[0:FLAGS.num_facts_limit]
         if FLAGS.use_entity_markers:
             nl_facts = " . ".join([
                 "[unused0] " + str(x[0][0][1]) + " [unused1] " + str(x[1][0][1]) + " [unused0] " + str(x[0][1][1])
