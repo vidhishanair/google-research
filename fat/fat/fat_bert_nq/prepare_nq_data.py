@@ -98,7 +98,7 @@ def main(_):
                                                     FLAGS.split, FLAGS.task_id,
                                                     FLAGS.shard_split_id,
                                                     "jsonl.gz")
-    if FLAGS.create_pretrain_data:
+    if FLAGS.create_pretrain_data or FLAGS.create_fact_annotation_data:
         pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
                                                                 FLAGS.split, FLAGS.task_id,
                                                                 FLAGS.shard_split_id,
