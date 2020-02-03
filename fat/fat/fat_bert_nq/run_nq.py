@@ -1170,7 +1170,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
     #     exit()
 
     if FLAGS.create_fact_annotation_data:
-        aligned_facts, num_hops = get_all_question_answer_paths(apr_obj, shortest_path_obj,
+        aligned_facts, num_hops = get_all_question_answer_paths(shortest_path_obj,
                                                                tokenizer, example.question_entity_map[-1], example.answer,
                                                                example.ner_entity_list, example.doc_tokens, pretrain_file)
         a = example.annotation
