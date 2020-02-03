@@ -232,8 +232,9 @@ def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
   path = []
   for hop in range(num_hops):
     new_paths = []
-    for object in answer_seeds_found_dict[hop+1]:
-      path.append([(None, None, object)])
+    if num_hops-hop in answer_seeds_found_dict.keys():
+      for object in answer_seeds_found_dict[num_hops-hop]:
+        path.append([(None, None, object)])
     for i in range(len(path)):
       object = path[i][-1][2]
       for idx, parent in enumerate(parent_dict[object]):
