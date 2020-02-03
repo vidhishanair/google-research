@@ -237,14 +237,15 @@ def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
         path.append([(None, None, object)])
     for i in range(len(path)):
       object = path[i][-1][2]
-      for idx, parent in enumerate(parent_dict[object]):
-        parent = parent[0]
-        rel = rel_dict[(parent, object)]
-        #path[i].append((object, rel, parent))
+      if object in parent_dict.keys():
+        for idx, parent in enumerate(parent_dict[object]):
+          parent = parent[0]
+          rel = rel_dict[(parent, object)]
+          #path[i].append((object, rel, parent))
 
-        item = path[i].copy()
-        item.append((object, rel, parent))
-        new_paths.append(item)
+          item = path[i].copy()
+          item.append((object, rel, parent))
+          new_paths.append(item)
     path = new_paths.copy()
 
   if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
