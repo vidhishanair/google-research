@@ -150,6 +150,10 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_rw_facts_in_shortest_path", False,
     "Whether to do shuffle hortest_path expt")
+flags.DEFINE_bool(
+    "create_fact_annotation_data", False,
+    "Whether to do shuffle hortest_path expt")
+
 flags.DEFINE_integer("num_facts_limit", -1,
                      "Limiting number of facts")
 
@@ -273,7 +277,8 @@ class NqExample(object):
                ner_entity_list=None,
                answer=None,
                start_position=None,
-               end_position=None):
+               end_position=None,
+               annotation=None):
     self.example_id = example_id
     self.qas_id = qas_id
     self.questions = questions
@@ -285,6 +290,7 @@ class NqExample(object):
     self.answer = answer
     self.start_position = start_position
     self.end_position = end_position
+    self.annotation = annotation
 
 
 def has_long_answer(a):
@@ -560,7 +566,8 @@ def create_example_from_jsonl(line):
       "id": str(e["example_id"]),
       "questions": [question],
       "answers": [answer],
-      "has_correct_context": annotated_idx in context_idxs
+      "has_correct_context": annotated_idx in context_idxs,
+      "annotation": annotation
   }
 
   single_map = []
@@ -709,7 +716,8 @@ def read_nq_entry(entry, is_training):
         ner_entity_list=entry["context_ner_entity_list"],
         answer=answer,
         start_position=start_position,
-        end_position=end_position)
+        end_position=end_position,
+        annotation=entry["annotation"])
     examples.append(example)
   return examples
 
@@ -791,34 +799,13 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
    nl_fact_tokens: Tokenized NL form of facts
   """
 
-  start_index = token_to_textmap_index[doc_span.start]
-  end_index = token_to_textmap_index[min(
-      doc_span.start + doc_span.length - 1,
-      len(token_to_textmap_index) -
-      1)]  # putting this min check need to check all this later
-
-  sub_list = entity_list[start_index:end_index + 1]
-  sub_ner_list = ner_entity_list[start_index:end_index+1]
-  sub_tokens = all_doc_tokens[start_index:end_index + 1]
-
   question_entities = set()
   for start_idx in question_entity_map.keys():
       for sub_span in question_entity_map[start_idx]:
           question_entities.add(sub_span[1])
 
-  if FLAGS.use_named_entities_to_filter:
-      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
-  else:
-      seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
-
-  if FLAGS.use_question_entities:
-      if FLAGS.verbose_logging:
-          print('Question seed entities: '+str(list(question_entities)))
-      seed_entities.extend(list(question_entities))
-
   num_hops = None
   if FLAGS.use_shortest_path_facts and not override_shortest_path:
-      #print(answer.text)
       facts, num_hops = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
       if FLAGS.shuffle_shortest_path_facts:
           random.shuffle(facts)
@@ -837,6 +824,26 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
       #  fp.write(nl_facts+"\n")
   else:
       # Adding this check since empty seeds generate random facts
+      start_index = token_to_textmap_index[doc_span.start]
+      end_index = token_to_textmap_index[min(
+          doc_span.start + doc_span.length - 1,
+          len(token_to_textmap_index) -
+          1)]  # putting this min check need to check all this later
+
+      sub_list = entity_list[start_index:end_index + 1]
+      sub_ner_list = ner_entity_list[start_index:end_index+1]
+      sub_tokens = all_doc_tokens[start_index:end_index + 1]
+
+      if FLAGS.use_named_entities_to_filter:
+        seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
+      else:
+        seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
+
+      if FLAGS.use_question_entities:
+        if FLAGS.verbose_logging:
+            print('Question seed entities: '+str(list(question_entities)))
+        seed_entities.extend(list(question_entities))
+
       if seed_entities:
         if FLAGS.use_random_fact_generator:
             unique_facts = apr_obj.get_random_facts(
@@ -874,6 +881,40 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
     tok_to_orig_index.extend([i] * len(sub_tokens))
     nl_fact_tokens.extend(sub_tokens)
   return nl_fact_tokens, num_hops
+
+def get_all_question_answer_paths(shortest_path_obj,
+                      tokenizer, question_entity_map, answer=None, ner_entity_list=None,
+                      all_doc_tokens=None, fp=None):
+    """For a given doc span, use seed entities, do APR, return related facts.
+
+    Args:
+     doc_span: A document span dictionary holding spart start,
+                     end and len details
+     token_to_textmap_index: A list mapping tokens to their positions
+                                   in full context
+     entity_list: A list mapping every token to their
+                         WikiData entity if present
+     apr_obj: An ApproximatePageRank object
+     tokenizer: BERT tokenizer
+
+    Returns:
+     nl_fact_tokens: Tokenized NL form of facts
+    """
+
+    question_entities = set()
+    for start_idx in question_entity_map.keys():
+        for sub_span in question_entity_map[start_idx]:
+            question_entities.add(sub_span[1])
+
+    num_hops = None
+    facts, num_hops = shortest_path_obj.get_all_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+
+    nl_facts = [" . ".join([
+            str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
+            for x in single_path
+        ]) for single_path in facts]
+
+    return nl_facts, num_hops
 
 #tp = open('dev_context_text.txt', 'a')
 #tfp = open('dev_context_text_facts.txt', 'a')
@@ -1127,6 +1168,26 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
     #     print(example.start_position, example.end_position)
     #     print(tok_start_position, tok_end_position)
     #     exit()
+
+    if FLAGS.create_fact_annotation_data:
+        aligned_facts, num_hops = get_all_question_answer_paths(apr_obj, shortest_path_obj,
+                                                               tokenizer, example.question_entity_map[-1], example.answer,
+                                                               example.ner_entity_list, example.doc_tokens, pretrain_file)
+        a = example.annotation
+        la_text, sa_text = "", ""
+        if a is not None:
+            idx = a["long_answer"]["candidate_index"]
+            la_text = a["long_answer"]["text_answer"]
+            if a["short_answers"]:
+                start_token = a["short_answers"][0]["start_token"]
+                end_token = a["short_answers"][-1]["end_token"]
+                sa_text = a["short_answers"][0]["text_answer"]
+        for path in aligned_facts:
+            if path != '':
+                pretrain_file.write(" ".join(query_tokens).replace(" ##", "")+"\t"
+                                    +str(la_text)+"\t"
+                                    +str(sa_text)+"\t"
+                                    +str(path)+"\n")
     
     # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]
     max_tokens_for_doc = FLAGS.max_seq_length - len(query_tokens) - 4
@@ -1283,6 +1344,8 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         #print(" ".join(text_tokens).replace(" ##", ""))
         if FLAGS.create_pretrain_data:
             pretrain_file.write(" ".join(text_tokens).replace(" ##", "")+"\n")
+        # if FLAGS.create_fact_annotation_data:
+        #     pretrain_file.write(" ".join(query_tokens).replace(" ##", "")+"\t"+" ".join(text_tokens).replace(" ##", "")+"\t")
         if FLAGS.augment_facts:
             #pretrain_file.write(example.questions[-1]+"\t"+" ".join(answer_version)+"\t")
             if FLAGS.verbose_logging:

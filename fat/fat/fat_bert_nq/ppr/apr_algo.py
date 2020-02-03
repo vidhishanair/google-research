@@ -178,6 +178,90 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
 
   return path, num_hops
 
+def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
+  """Return list of shortest paths between question and answer seeds.
+
+  Args:
+    question_seeds: A list of seed entity ids
+    adj_mat: A sparse matrix of size E x E whose rows sum to one.
+    answer_seeds: A list of seed entity ids
+
+  Returns:
+      paths: A list of shortest paths between question and answer entities
+  """
+
+  seeds = question_seeds
+  answer_seeds = set(answer_seeds)
+  parent_dict = {}
+  answer_seeds_found = []
+  answer_seeds_found_dict = {}
+  num_hops = 0
+  tmp_num_hops = 0
+  for i in range(k_hop):
+    tmp_num_hops += 1
+    # Slicing adjacency matrix to subgraph of all extracted entities
+    submat = adj_mat[:, seeds]
+
+    # Extracting non-zero entity pairs
+    row, col = submat.nonzero()
+    # print(row)
+    # print(col)
+    objects = []
+    for ii in range(row.shape[0]):
+      obj_id = row[ii]
+      subj_id = seeds[col[ii]]
+      #print('Processing link: '+str(subj_id)+" "+str(obj_id))
+      if obj_id in parent_dict:
+        if i == parent_dict[obj_id][-1][1]:
+          parent_dict[obj_id].append((subj_id, i))
+        #else:
+        #  parent_dict[obj_id] = [(subj_id, i)]
+      else:
+        parent_dict[obj_id] = [(subj_id,i)]
+      objects.append(obj_id)
+    objects = set(objects)
+    answer_seeds_found = list(objects.intersection(answer_seeds))
+    if answer_seeds_found:
+      answer_seeds_found_dict[tmp_num_hops] = answer_seeds_found
+      num_hops = tmp_num_hops
+      # break
+    seeds = list(objects)
+
+  if FLAGS.verbose_logging:
+    print('Answer seeds found' +str(answer_seeds_found))
+  path = []
+  for hop in range(num_hops):
+    new_paths = []
+    for object in answer_seeds_found_dict[hop]:
+      path.append([(None, None, object)])
+    for i in range(len(path)):
+      object = path[i][-1][2]
+      for idx, parent in enumerate(parent_dict[object]):
+        parent = parent[0]
+        rel = rel_dict[(parent, object)]
+        #path[i].append((object, rel, parent))
+
+        item = path[i].copy()
+        item.append((object, rel, parent))
+        new_paths.append(item)
+    path = new_paths.copy()
+
+  if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
+    submat = adj_mat[:, question_seeds]
+    row, col = submat.nonzero()
+    limit = 10
+    if FLAGS.num_facts_limit > 0:
+      limit = FLAGS.num_facts_limit
+    for ii in range(min(row.shape[0],limit)):
+      obj_id = row[ii]
+      subj_id = question_seeds[col[ii]]
+      rel_id = rel_dict[(subj_id, obj_id)]
+      path.append([(), (subj_id, rel_id, obj_id)])
+  if FLAGS.verbose_logging:
+    print(path)
+
+  return path, num_hops
+
 def get_fact_score(extracted_scores,
                    subj,
                    obj,
