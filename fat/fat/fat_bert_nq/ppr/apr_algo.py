@@ -174,10 +174,9 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
       obj_id = row[ii]
       subj_id = question_seeds[col[ii]]
       rel_id = rel_dict[(subj_id, obj_id)]
-      path.append([(), (subj_id, rel_id, obj_id)])
+      path.append([(), (obj_id, rel_id, subj_id)])
   if FLAGS.verbose_logging:
     print(path)
-
   return path, num_hops
 
 def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
