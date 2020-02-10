@@ -153,6 +153,9 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "create_fact_annotation_data", False,
     "Whether to do shuffle hortest_path expt")
+flags.DEFINE_bool(
+    "use_only_random_facts_of_question", False,
+    "Whether to use only random_facts")
 
 flags.DEFINE_integer("num_facts_limit", -1,
                      "Limiting number of facts")

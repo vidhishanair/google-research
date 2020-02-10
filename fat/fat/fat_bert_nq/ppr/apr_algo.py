@@ -261,6 +261,8 @@ def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
   #print("path here: "+str(path))
 
   if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
+    if FLAGS.use_only_random_facts_of_question:
+      path = []
     submat = adj_mat[:, question_seeds]
     row, col = submat.nonzero()
     limit = 10
