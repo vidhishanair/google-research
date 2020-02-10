@@ -906,6 +906,12 @@ def get_all_question_answer_paths(shortest_path_obj,
         for sub_span in question_entity_map[start_idx]:
             question_entities.add(sub_span[1])
 
+    question_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in list(question_entities) if x in shortest_path_obj.data.ent2id]
+    question_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
+
+    answer_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in answer.entities if x in shortest_path_obj.data.ent2id]
+    answer_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
+    
     num_hops = None
     facts, num_hops = shortest_path_obj.get_all_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
 
@@ -913,8 +919,8 @@ def get_all_question_answer_paths(shortest_path_obj,
             str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
             for x in single_path
         ]) for single_path in facts]
-
-    return nl_facts, num_hops
+    #print(nl_facts)
+    return nl_facts, num_hops, question_entity_names, answer_entity_names
 
 #tp = open('dev_context_text.txt', 'a')
 #tfp = open('dev_context_text_facts.txt', 'a')
@@ -1170,7 +1176,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
     #     exit()
 
     if FLAGS.create_fact_annotation_data:
-        aligned_facts, num_hops = get_all_question_answer_paths(shortest_path_obj,
+        aligned_facts, num_hops, question_entity_names, answer_entity_names = get_all_question_answer_paths(shortest_path_obj,
                                                                tokenizer, example.question_entity_map[-1], example.answer,
                                                                example.ner_entity_list, example.doc_tokens, pretrain_file)
         a = example.annotation
@@ -1182,11 +1188,14 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 start_token = a["short_answers"][0]["start_token"]
                 end_token = a["short_answers"][-1]["end_token"]
                 sa_text = a["short_answers"][0]["text_answer"]
+        aligned_facts = list(set(aligned_facts))
         for path in aligned_facts:
             if path != '':
                 pretrain_file.write(" ".join(query_tokens).replace(" ##", "")+"\t"
+                                    +str(question_entity_names)+"\t"
                                     +str(la_text)+"\t"
                                     +str(sa_text)+"\t"
+                                    +str(answer_entity_names)+"\t"
                                     +str(path)+"\n")
     
     # The -4 accounts for [CLS], [SEP] and [SEP] and [SEP]

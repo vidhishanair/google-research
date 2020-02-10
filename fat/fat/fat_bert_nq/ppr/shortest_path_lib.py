@@ -274,9 +274,9 @@ class ShortestPath(object):
         augmented_facts = self.get_all_path_augmented_facts(extracted_paths, self.data.entity_names)
 
         if FLAGS.verbose_logging:
-            print('Extracted facts: ')
+            print('All path Extracted facts: ')
             print(str(augmented_facts))
-            tf.logging.info('Extracted facts: ')
+            tf.logging.info('All path Extracted facts: ')
             tf.logging.info(str(augmented_facts))
             print("Num hops: "+str(num_hops))
         return augmented_facts, num_hops

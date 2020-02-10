@@ -191,6 +191,7 @@ def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
   """
 
   seeds = question_seeds
+  #print("Question Seeds: "+str(seeds))
   answer_seeds = set(answer_seeds)
   parent_dict = {}
   answer_seeds_found = []
@@ -237,6 +238,9 @@ def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
         path.append([(None, None, object)])
     for i in range(len(path)):
       object = path[i][-1][2]
+      if object in question_seeds:
+          new_paths.append(path[i].copy())
+          continue
       if object in parent_dict.keys():
         for idx, parent in enumerate(parent_dict[object]):
           parent = parent[0]
@@ -244,9 +248,17 @@ def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
           #path[i].append((object, rel, parent))
 
           item = path[i].copy()
+          if len(item) > 1 and item[-1][2] == object and item[-1][0]==parent:
+              new_paths.append(item)
+              print(item)
+              print(object)
+              exit()
+              continue
           item.append((object, rel, parent))
           new_paths.append(item)
     path = new_paths.copy()
+
+  #print("path here: "+str(path))
 
   if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
     submat = adj_mat[:, question_seeds]
