@@ -156,6 +156,9 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_only_random_facts_of_question", False,
     "Whether to use only random_facts")
+flags.DEFINE_bool(
+    "use_question_to_passage_facts", False,
+    "Whether to use only question to passage facts")
 
 flags.DEFINE_integer("num_facts_limit", -1,
                      "Limiting number of facts")
@@ -925,6 +928,68 @@ def get_all_question_answer_paths(shortest_path_obj,
     #print(nl_facts)
     return nl_facts, num_hops, question_entity_names, answer_entity_names
 
+def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list, shortest_path_obj,
+                                  tokenizer, question_entity_map, answer=None, ner_entity_list=None,
+                                  all_doc_tokens=None, fp=None):
+    """For a given doc span, use seed entities, do APR, return related facts.
+
+    Args:
+     doc_span: A document span dictionary holding spart start,
+                     end and len details
+     token_to_textmap_index: A list mapping tokens to their positions
+                                   in full context
+     entity_list: A list mapping every token to their
+                         WikiData entity if present
+     apr_obj: An ApproximatePageRank object
+     tokenizer: BERT tokenizer
+
+    Returns:
+     nl_fact_tokens: Tokenized NL form of facts
+    """
+
+    question_entities = set()
+    for start_idx in question_entity_map.keys():
+        for sub_span in question_entity_map[start_idx]:
+            question_entities.add(sub_span[1])
+
+    question_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in list(question_entities) if x in shortest_path_obj.data.ent2id]
+    question_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
+
+    answer_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in answer.entities if x in shortest_path_obj.data.ent2id]
+    answer_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
+
+    start_index = token_to_textmap_index[doc_span.start]
+    end_index = token_to_textmap_index[min( doc_span.start + doc_span.length - 1,
+                                        len(token_to_textmap_index) - 1)]  # putting this min check need to check all this later
+    sub_list = entity_list[start_index:end_index + 1]
+    sub_ner_list = ner_entity_list[start_index:end_index+1]
+    sub_tokens = all_doc_tokens[start_index:end_index + 1]
+    if FLAGS.use_named_entities_to_filter:
+        passage_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
+    else:
+        passage_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
+
+    num_hops = None
+    facts, num_hops = shortest_path_obj.get_question_to_passage_facts(list(question_entities), answer.entities, passage_entities=passage_entities, seed_weighting=True, fp=fp)
+
+    nl_facts = [" . ".join([
+        str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
+        for x in single_path
+    ]) for single_path in facts]
+
+    tok_to_orig_index = []
+    tok_to_textmap_index = []
+    orig_to_tok_index = []
+    nl_fact_tokens = []
+    for (i, token) in enumerate(nl_facts.split()):
+        orig_to_tok_index.append(len(nl_fact_tokens))
+        sub_tokens = tokenize(tokenizer, token)
+        tok_to_textmap_index.extend([i] * len(sub_tokens))
+        tok_to_orig_index.extend([i] * len(sub_tokens))
+        nl_fact_tokens.extend(sub_tokens)
+
+    return nl_fact_tokens, num_hops, question_entity_names, answer_entity_names
+
 #tp = open('dev_context_text.txt', 'a')
 #tfp = open('dev_context_text_facts.txt', 'a')
 
@@ -1377,6 +1442,16 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                                                                       tokenizer, example.question_entity_map[-1], example.answer,
                                                                       example.ner_entity_list, example.doc_tokens, pretrain_file,
                                                                       override_shortest_path=True)
+                if FLAGS.verbose_logging:
+                    print("Newly aligned Facts")
+                    print(aligned_facts_subtokens)
+            if FLAGS.use_question_to_passage_facts:
+                aligned_facts_subtokens, _, _, _ = get_all_question_passage_paths(doc_span, tok_to_textmap_index,
+                                                                            example.entity_list, shortest_path_obj,
+                                                                            tokenizer, example.question_entity_map[-1],
+                                                                            example.answer,
+                                                                            example.ner_entity_list, example.doc_tokens,
+                                                                            pretrain_file)
                 if FLAGS.verbose_logging:
                     print("Newly aligned Facts")
                     print(aligned_facts_subtokens)

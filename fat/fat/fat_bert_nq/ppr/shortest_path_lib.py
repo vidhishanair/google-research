@@ -208,78 +208,78 @@ class ShortestPath(object):
         return augmented_facts, num_hops
 
     def get_question_to_passage_facts(self, question_entities, answer_entities, passage_entities, seed_weighting=True, fp=None):
-            """Get subgraph describing shortest path from question to answer.
+        """Get subgraph describing shortest path from question to answer.
 
-            Args:
-              question_entities: A list of Wikidata entities
-              answer_entities: A list of Wikidata entities
-              passage_entities: A list of Wikidata entities
+        Args:
+          question_entities: A list of Wikidata entities
+          answer_entities: A list of Wikidata entities
+          passage_entities: A list of Wikidata entities
 
-            Returns:
-              unique_facts: A list of unique facts representing the shortest path.
-            """
+        Returns:
+          unique_facts: A list of unique facts representing the shortest path.
+        """
 
-            if FLAGS.verbose_logging:
-                print('Getting subgraph')
-                tf.logging.info('Getting subgraph')
-            question_entity_ids = [
-                int(self.data.ent2id[x]) for x in question_entities if x in self.data.ent2id
-            ]
-            question_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids
-                                         ])
-            #if fp is not None:
-            #    fp.write(str(question_entities)+"\t"+question_entity_names+"\t")
-            if FLAGS.verbose_logging:
-                print('Question Entities')
-                tf.logging.info('Question Entities')
-                print(question_entities)
-                print(question_entity_names)
-                tf.logging.info(question_entity_names)
+        if FLAGS.verbose_logging:
+            print('Getting subgraph')
+            tf.logging.info('Getting subgraph')
+        question_entity_ids = [
+            int(self.data.ent2id[x]) for x in question_entities if x in self.data.ent2id
+        ]
+        question_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids
+                                     ])
+        #if fp is not None:
+        #    fp.write(str(question_entities)+"\t"+question_entity_names+"\t")
+        if FLAGS.verbose_logging:
+            print('Question Entities')
+            tf.logging.info('Question Entities')
+            print(question_entities)
+            print(question_entity_names)
+            tf.logging.info(question_entity_names)
 
-            answer_entity_ids = [
-                    int(self.data.ent2id[x]) for x in answer_entities if x in self.data.ent2id
-                ]
-            answer_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids
-                                       ])
-            #if fp is not None:
-            #    fp.write(str(answer_entities)+"\t"+answer_entity_names+"\t")
-            if FLAGS.verbose_logging:
-                print('Answer Entities')
-                tf.logging.info('Answer Entities')
-                print(answer_entities)
-                print(answer_entity_names)
-                tf.logging.info(answer_entity_names)
-            passage_entity_ids = [
-                int(self.data.ent2id[x]) for x in passage_entities if x in self.data.ent2id
-            ]
-            passage_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in passage_entity_ids
-                                       ])
-            if FLAGS.verbose_logging:
-                print('Passage Entities')
-                tf.logging.info('Passage Entities')
-                print(passage_entity_names)
-                tf.logging.info(passage_entity_names)
+        answer_entity_ids = [
+            int(self.data.ent2id[x]) for x in answer_entities if x in self.data.ent2id
+        ]
+        answer_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids
+                                   ])
+        #if fp is not None:
+        #    fp.write(str(answer_entities)+"\t"+answer_entity_names+"\t")
+        if FLAGS.verbose_logging:
+            print('Answer Entities')
+            tf.logging.info('Answer Entities')
+            print(answer_entities)
+            print(answer_entity_names)
+            tf.logging.info(answer_entity_names)
+        passage_entity_ids = [
+            int(self.data.ent2id[x]) for x in passage_entities if x in self.data.ent2id
+        ]
+        passage_entity_names = str([self.data.entity_names['e'][str(x)]['name'] for x in passage_entity_ids
+                                    ])
+        if FLAGS.verbose_logging:
+            print('Passage Entities')
+            tf.logging.info('Passage Entities')
+            print(passage_entity_names)
+            tf.logging.info(passage_entity_names)
 
-            freq_dict = {x: question_entity_ids.count(x) for x in question_entity_ids}
+        freq_dict = {x: question_entity_ids.count(x) for x in question_entity_ids}
 
-            # question_seeds = np.zeros((self.data.adj_mat_t_csr.shape[0], 1))
-            # if not seed_weighting:
-            #     question_seeds[question_entity_ids] = 1. / len(set(question_entity_ids))
-            # else:
-            #     for x, y in freq_dict.items():
-            #         question_seeds[x] = y
-            #     question_seeds = question_seeds / question_seeds.sum()
+        # question_seeds = np.zeros((self.data.adj_mat_t_csr.shape[0], 1))
+        # if not seed_weighting:
+        #     question_seeds[question_entity_ids] = 1. / len(set(question_entity_ids))
+        # else:
+        #     for x, y in freq_dict.items():
+        #         question_seeds[x] = y
+        #     question_seeds = question_seeds / question_seeds.sum()
 
-            extracted_paths, num_hops = csr_get_shortest_path(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=FLAGS.k_hop)
-            augmented_facts = self.get_augmented_facts(extracted_paths, self.data.entity_names)
+        extracted_paths, num_hops = csr_get_all_paths(question_entity_ids, self.data.adj_mat_t_csr, passage_entity_ids, self.data.rel_dict, k_hop=FLAGS.k_hop)
+        augmented_facts = self.get_all_path_augmented_facts(extracted_paths, self.data.entity_names)
 
-            if FLAGS.verbose_logging:
-                print('Extracted facts: ')
-                print(str(augmented_facts))
-                tf.logging.info('Extracted facts: ')
-                tf.logging.info(str(augmented_facts))
-                print("Num hops: "+str(num_hops))
-            return augmented_facts, num_hops
+        if FLAGS.verbose_logging:
+            print('All path Extracted facts: ')
+            print(str(augmented_facts))
+            tf.logging.info('All path Extracted facts: ')
+            tf.logging.info(str(augmented_facts))
+            print("Num hops: "+str(num_hops))
+        return augmented_facts, num_hops
 
     def get_all_path_facts(self, question_entities, answer_entities, passage_entities, seed_weighting=True, fp=None):
         """Get subgraph describing shortest path from question to answer.
