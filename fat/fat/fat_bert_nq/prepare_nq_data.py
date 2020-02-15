@@ -91,6 +91,14 @@ def main(_):
   instances_processed = 0
   num_examples_with_correct_context = 0
 
+  if FLAGS.create_pretrain_data or FLAGS.create_fact_annotation_data:
+      pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
+                                                              FLAGS.split, FLAGS.task_id,
+                                                              FLAGS.shard_split_id,
+                                                              "txt"), 'w')
+  else:
+      pretrain_file = None
+
   if FLAGS.is_training:
     creator_fn = run_nq.CreateTFExampleFn(is_training=FLAGS.is_training)
     instances = []
@@ -98,14 +106,6 @@ def main(_):
                                                     FLAGS.split, FLAGS.task_id,
                                                     FLAGS.shard_split_id,
                                                     "jsonl.gz")
-    if FLAGS.create_pretrain_data or FLAGS.create_fact_annotation_data:
-        pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
-                                                                FLAGS.split, FLAGS.task_id,
-                                                                FLAGS.shard_split_id,
-                                                                "txt"), 'w')
-    else:
-        pretrain_file = None
-
     #pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
     #                                                        FLAGS.split, FLAGS.task_id,
     #                                                        FLAGS.shard_split_id,
@@ -167,7 +167,8 @@ def main(_):
         examples=eval_examples,
         tokenizer=tokenizer,
         is_training=False,
-        output_fn=append_feature)
+        output_fn=append_feature,
+        pretrain_file=pretrain_file)
     eval_writer.close()
 
   # For eval - Fianlly merge all shards into 1
