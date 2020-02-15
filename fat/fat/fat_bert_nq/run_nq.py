@@ -972,10 +972,10 @@ def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list
     num_hops = None
     facts, num_hops = shortest_path_obj.get_question_to_passage_facts(list(question_entities), answer.entities, passage_entities=passage_entities, seed_weighting=True, fp=fp)
 
-    nl_facts = [" . ".join([
+    nl_facts = " . ".join([" . ".join([
         str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
         for x in single_path
-    ]) for single_path in facts]
+    ]) for single_path in facts])
 
     tok_to_orig_index = []
     tok_to_textmap_index = []
