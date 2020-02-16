@@ -55,7 +55,7 @@ class CsrData(object):
     self.ent2id = None  # Python dictionary mapping entities to integer ids.
     self.entity_names = None  # dict mapping entity ids to entity surface forms
 
-  def get_file_names(self, full_wiki, files_dir, shard_level=False, mode=None, task_id=None, shard_id=None):
+  def get_file_names(self, full_wiki, files_dir, shard_level=False, mode=None, task_id=None, shard_id=None, question_id=None):
     """Return filenames depending on full KB or subset of KB."""
     if shard_level:
       file_names = {
@@ -68,6 +68,18 @@ class CsrData(object):
       }
       sharded_fnames = {k: '%02d%02d_'%(task_id, shard_id) + v for k, v in file_names.items()}
       file_paths = {k: os.path.join(files_dir+"%s/"%(mode), v) for k, v in sharded_fnames.items()}
+      file_paths['kb_fname'] =  os.path.join(files_dir, 'kb.sling')
+    elif question_id is not None:
+      file_names = {
+        'ent2id_fname': 'csr_ent2id_full.json.gz',
+        'id2ent_fname': 'csr_id2ent_full.json.gz',
+        'rel2id_fname': 'csr_rel2id_full.json.gz',
+        'rel_dict_fname': 'csr_rel_dict_full.npz',
+        'entity_names_fname': 'csr_entity_names_full.json.gz',
+        'adj_mat_fname': 'csr_adj_mat_sparse_matrix_full.npz',
+      }
+      question_fnames = {k: '%s_'%(question_id) + v for k, v in file_names.items()}
+      file_paths = {k: os.path.join(files_dir, v) for k, v in question_fnames.items()}
       file_paths['kb_fname'] =  os.path.join(files_dir, 'kb.sling')
     else:
       sub_file_names = {
@@ -92,7 +104,7 @@ class CsrData(object):
       file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
     return file_paths
 
-  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None):
+  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None):
     """Return the PPR vector for the given seed and adjacency matrix.
 
       Algorithm : Parses sling KB - extracts subj, obj, rel triple and stores
