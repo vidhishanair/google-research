@@ -12,7 +12,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('relations_file', None, 'input relations dict')
-flags.DEFINE_string('output_fule', None, 'output relations dict')
+flags.DEFINE_string('output_file', None, 'output relations dict')
 
 relations_file = FLAGS.relations_file
 embeddings_file = "/remote/bones/user/vbalacha/datasets/glove/glove.6B.300d.txt"
@@ -32,7 +32,7 @@ with gzip.GzipFile(fileobj=tf.gfile.Open(relations_file, 'rb')) as op4:
     obj = json.load(op4)
     op4.close()
     relations = obj['r']
-    for rel_id, val in relations_file.items():
+    for rel_id, val in relations.items():
         rel_name = val['name']
         for word in rel_name.split():
             _add_word(word, rel_id)
