@@ -1,5 +1,6 @@
 """Script to compute question embeddings for given questions."""
-import cPickle as pkl
+#import cPickle as pkl
+import pickle as pkl
 import numpy as np
 import json
 from tqdm import tqdm
@@ -11,19 +12,19 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/', 'Read nq data to extract entities')
-flags.DEFINE_string('output_dir', '/remote/bones/user/vbalacha/datasets/nq_question_embeddings/', 'Read nq data to extract entities')
+#flags.DEFINE_string('output_dir', '/remote/bones/user/vbalacha/datasets/nq_question_embeddings/', 'Read nq data to extract entities')
 flags.DEFINE_integer("shard_id", None,
                      "Train and dev shard to read from and write to.")
-flags.DEFINE_integer("task_id", None,
-                     "Train and dev shard to read from and write to.")
+#flags.DEFINE_integer("task_id", None,
+#                     "Train and dev shard to read from and write to.")
 flags.DEFINE_string(
-    "model", "train",
+    "mode", "train",
     "Train and dev split to read from and write to. Accepted values: ['train', 'dev', 'test']"
 )
 
 questions_file = nq_data_utils.get_sharded_filename(FLAGS.nq_dir, FLAGS.mode, FLAGS.task_id, FLAGS.shard_id, 'jsonl.gz')
 embeddings_file = "/remote/bones/user/vbalacha/datasets/glove/glove.6B.300d.txt"
-output_file = nq_data_utils.get_sharded_filename(FLAGS.nq_dir, FLAGS.mode, FLAGS.task_id, FLAGS.shard_id, 'pkl')
+output_file = nq_data_utils.get_sharded_filename(FLAGS.output_dir, FLAGS.mode, FLAGS.task_id, FLAGS.shard_id, 'pkl')
 dim = 300
 
 word_to_question = {}
@@ -53,4 +54,5 @@ with open(embeddings_file) as f:
 for question in question_emb:
     question_emb[question] = question_emb[question] / question_lens[question]
 
-pkl.dump(question_emb, open(output_file, "w"))
+print("Processed questions: "+str(len(question_emb.keys())))
+pkl.dump(question_emb, open(output_file, "wb"))
