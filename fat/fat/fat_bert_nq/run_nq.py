@@ -148,6 +148,10 @@ flags.DEFINE_bool(
     "shuffle_shortest_path_facts", False,
     "Whether to do shuffle hortest_path expt")
 flags.DEFINE_bool(
+    "add_random_question_facts_to_shortest_path", False,
+    "Whether to retreive random facts "
+    "models and False for cased models.")
+flags.DEFINE_bool(
     "use_rw_facts_in_shortest_path", False,
     "Whether to do shuffle hortest_path expt")
 flags.DEFINE_bool(

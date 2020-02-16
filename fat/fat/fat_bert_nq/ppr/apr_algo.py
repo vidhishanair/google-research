@@ -29,11 +29,6 @@ flags.DEFINE_string(
     'fact_score_type', 'FREQ_SCORE',
     'Scoring method for facts. One in ["FREQ_SCORE", "MIN_SCORE"]')
 
-flags.DEFINE_bool(
-  "add_random_question_facts_to_shortest_path", False,
-  "Whether to retreive random facts "
-  "models and False for cased models.")
-
 def csr_personalized_pagerank(seeds, adj_mat, alpha, max_iter=20):
   """Return the PPR Scores vector for the given seed and adjacency matrix.
 
