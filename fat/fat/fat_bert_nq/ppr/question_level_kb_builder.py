@@ -43,7 +43,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/', 'Read nq data to extract entities')
-flags.DEFINE_string('question_emb_dir', 'remote/bones/user/vbalacha/datasets/nq_question_embeddings/', 'input questions dict')
+flags.DEFINE_string('question_emb_dir', '/remote/bones/user/vbalacha/datasets/nq_question_embeddings/', 'input questions dict')
 flags.DEFINE_integer("shard_split_id", None,
                      "Train and dev shard to read from and write to.")
 
@@ -117,7 +117,7 @@ if __name__ == '__main__':
     print(FLAGS.decompose_ppv)
     print(FLAGS.apr_files_dir)
     question_emb_file = nq_data_utils.get_sharded_filename(FLAGS.question_emb_dir, FLAGS.split, FLAGS.task_id, FLAGS.shard_split_id, 'pkl')
-    question_embeddings = pkl.load(open(question_emb_file))
+    question_embeddings = pkl.load(open(question_emb_file, 'rb'))
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
     apr = ApproximatePageRank(FLAGS.split, FLAGS.task_id, FLAGS.shard_split_id)
