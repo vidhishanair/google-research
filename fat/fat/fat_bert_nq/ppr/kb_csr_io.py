@@ -135,7 +135,7 @@ class CsrData(object):
                    (obj, str(kb[obj]['name'])),
                    (rel, str(kb[rel]['name'])))
 
-  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None, question_embedding=None, sub_facts=None):
+  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None, question_embedding=None, relation_embeddings=None, sub_facts=None):
     """Return the PPR vector for the given seed and adjacency matrix.
 
       Algorithm : Parses sling KB - extracts subj, obj, rel triple and stores
@@ -258,7 +258,7 @@ class CsrData(object):
 
         # TODO(vidhisha) : Add this during Relation Training
         if FLAGS.relation_weighting:
-          relation_embeddings = pkl.load(open(file_paths['rel_emb'], 'rb'))
+          # relation_embeddings = pkl.load(open(file_paths['rel_emb'], 'rb'))
           # if rel not in relation_embeddings:
           #   score = self.NOTFOUNDSCORE
           # else:

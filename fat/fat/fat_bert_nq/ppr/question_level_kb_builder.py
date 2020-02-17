@@ -44,6 +44,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/', 'Read nq data to extract entities')
 flags.DEFINE_string('question_emb_dir', '/remote/bones/user/vbalacha/datasets/nq_question_embeddings/', 'input questions dict')
+flags.DEFINE_string('relation_emb_file', '/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/downweight_three_hop_kb/csr_relation_embeddings.pkl', 'input questions dict')
 flags.DEFINE_integer("shard_split_id", None,
                      "Train and dev shard to read from and write to.")
 
@@ -118,6 +119,7 @@ if __name__ == '__main__':
     print(FLAGS.apr_files_dir)
     question_emb_file = nq_data_utils.get_sharded_filename(FLAGS.question_emb_dir, FLAGS.split, FLAGS.task_id, FLAGS.shard_split_id, 'pkl')
     question_embeddings = pkl.load(open(question_emb_file, 'rb'))
+    relation_embeddings = pkl.load(open(FLAGS.relation_emb_file, 'rb'))
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
     apr = ApproximatePageRank(FLAGS.split, FLAGS.task_id, FLAGS.shard_split_id)
@@ -167,6 +169,7 @@ if __name__ == '__main__':
                                                       sub_entities=k_hop_entities,
                                                       question_id=example_id,
                                                       question_embedding=question_embedding,
+                                                      relation_embeddings=relation_embeddings,
                                                       sub_facts=k_hop_facts)
                     print('Time taken for CSR: '+str(time.time() - st))
     print("No ent questions: "+str(empty_ents))
