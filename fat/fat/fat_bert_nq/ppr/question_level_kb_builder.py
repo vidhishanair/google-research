@@ -21,6 +21,7 @@ from __future__ import division
 from __future__ import print_function
 
 import gc
+import time
 import gzip
 import json
 import os
@@ -132,6 +133,8 @@ if __name__ == '__main__':
                     example_id = item['example_id']
                     if 'question_entity_map' in item.keys():
                         question_entities.extend([ ent for k, v in item['question_entity_map'].items() for (ids, ent) in v ])
+                        st = time.time()
+                        print(example_id)
                         print("Size of all entities: %d", len(question_entities))
                         two_hop_entities = apr.get_khop_entities(question_entities, FLAGS.csr_num_hops)
                         print("Size of two hop entities: %d", len(two_hop_entities))
@@ -141,4 +144,6 @@ if __name__ == '__main__':
                                                           files_dir=FLAGS.apr_files_dir,
                                                           sub_entities=two_hop_entities,
                                                           question_id=example_id)
+                        print('Time taken for CSR: '+str(time.time() - st))
+                            
 

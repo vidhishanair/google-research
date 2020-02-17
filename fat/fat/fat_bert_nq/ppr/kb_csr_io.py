@@ -128,7 +128,7 @@ class CsrData(object):
       shard_level = True
     else:
       shard_level = False
-    file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id)
+    file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id, question_id)
     tf.logging.info('KB Related filenames: %s'%(file_paths))
     print(file_paths)
     tf.logging.info('Loading KB')
@@ -142,7 +142,8 @@ class CsrData(object):
     entity_names['e'] = dict()
     entity_names['r'] = dict()
 
-    sub_entities = {k:1 for k in sub_entities}
+    if sub_entities is not None:
+        sub_entities = {k:1 for k in sub_entities}
     # if shard_level:
     #   num_entities = sling_utils.get_num_entities(kb, full_wiki, sub_entities)
     # else:
@@ -163,9 +164,11 @@ class CsrData(object):
         break  # For small KB Creation
       if sling_utils.is_subj(x, kb):
         subj = x.id
+        if sub_entities is not None and subj not in sub_entities:
+          continue
         properties = sling_utils.get_properties(x, kb)
         for (rel, obj) in properties:
-          if sub_entities is not None and (subj not in sub_entities or obj not in sub_entities):
+          if sub_entities is not None and (obj not in sub_entities):
             continue
 
           if subj not in ent2id:
