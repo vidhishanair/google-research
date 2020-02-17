@@ -23,6 +23,7 @@ from __future__ import print_function
 import gc
 import time
 import gzip
+import pkl
 import json
 import os
 import tempfile
@@ -42,6 +43,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/', 'Read nq data to extract entities')
+flags.DEFINE_string('question_emb_dir', 'remote/bones/user/vbalacha/datasets/nq_question_embeddings/', 'input questions dict')
 flags.DEFINE_integer("shard_split_id", None,
                      "Train and dev shard to read from and write to.")
 
@@ -113,9 +115,11 @@ if __name__ == '__main__':
     print(FLAGS.full_wiki)
     print(FLAGS.decompose_ppv)
     print(FLAGS.apr_files_dir)
+    question_emb_file = nq_data_utils.get_sharded_filename(FLAGS.question_emb_dir, FLAGS.mode, FLAGS.task_id, FLAGS.shard_id, 'pkl')
+    question_embeddings = pkl.load(open(question_emb_file))
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
-    apr = ApproximatePageRank()
+    apr = ApproximatePageRank(FLAGS.split, FLAGS.task_id, FLAGS.shard_split_id)
     empty_ents = 0
     for mode in [FLAGS.split]:
         # Parse all shards in each mode
@@ -132,6 +136,9 @@ if __name__ == '__main__':
                 for counter, item in nq_data.items():
                     entities = []
                     example_id = item['example_id']
+                    question_embedding = None
+                    if FLAGS.relation_weighting:
+                        question_embedding = question_embeddings[example_id]
                     if 'question_entity_map' in item.keys():
                         entities.extend([ ent for k, v in item['question_entity_map'].items() for (ids, ent) in v ])
                     # for ann in item["annotations"]:
@@ -158,6 +165,7 @@ if __name__ == '__main__':
                                                       files_dir=FLAGS.apr_files_dir,
                                                       sub_entities=k_hop_entities,
                                                       question_id=example_id,
+                                                      question_embedding=question_embedding,
                                                       sub_facts=k_hop_facts)
                     print('Time taken for CSR: '+str(time.time() - st))
     print("No ent questions: "+str(empty_ents))

@@ -26,6 +26,7 @@ import time
 import json
 import os
 import tempfile
+import pkl
 
 import numpy as np
 import scipy.sparse as sparse
@@ -40,6 +41,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
 flags.DEFINE_bool('full_wiki', True, '')
 flags.DEFINE_bool('decompose_ppv', False, '')
+flags.DEFINE_bool('relation_weighting', False, '')
 flags.DEFINE_bool('downweight_incoming_degree', False, '')
 flags.DEFINE_integer('total_kb_entities', 188309,
                      'Total entities in processed sling KB')
@@ -55,6 +57,8 @@ class CsrData(object):
     self.rel_dict = None  # CSR ExE sparse matrix where values are rel_id
     self.ent2id = None  # Python dictionary mapping entities to integer ids.
     self.entity_names = None  # dict mapping entity ids to entity surface forms
+    self.NOTFOUNDSCORE = 0
+    self.EXPONENT = 2.
 
   def get_file_names(self, full_wiki, files_dir, shard_level=False, mode=None, task_id=None, shard_id=None, question_id=None):
     """Return filenames depending on full KB or subset of KB."""
@@ -82,6 +86,7 @@ class CsrData(object):
       question_fnames = {k: '%s_'%(question_id) + v for k, v in file_names.items()}
       file_paths = {k: os.path.join(files_dir, v) for k, v in question_fnames.items()}
       file_paths['kb_fname'] =  os.path.join(files_dir, 'kb.sling')
+      file_paths['rel_emb'] =  os.path.join(files_dir, 'csr_relation_embeddings.pkl')
     else:
       sub_file_names = {
           'ent2id_fname': 'csr_ent2id_sub.json.gz',
@@ -89,6 +94,7 @@ class CsrData(object):
           'rel2id_fname': 'csr_rel2id_sub.json.gz',
           'rel_dict_fname': 'csr_rel_dict_sub.npz',
           'kb_fname': 'kb.sling',
+          'rel_emb': 'csr_relation_embeddings.pkl',
           'entity_names_fname': 'csr_entity_names_sub.json.gz',
           'adj_mat_fname': 'csr_adj_mat_sparse_matrix_sub.npz'
       }
@@ -97,6 +103,7 @@ class CsrData(object):
           'id2ent_fname': 'csr_id2ent_full.json.gz',
           'rel2id_fname': 'csr_rel2id_full.json.gz',
           'rel_dict_fname': 'csr_rel_dict_full.npz',
+          'rel_emb': 'csr_relation_embeddings.pkl',
           'kb_fname': 'kb.sling',
           'entity_names_fname': 'csr_entity_names_full.json.gz',
           'adj_mat_fname': 'csr_adj_mat_sparse_matrix_full.npz',
@@ -128,7 +135,7 @@ class CsrData(object):
                    (obj, str(kb[obj]['name'])),
                    (rel, str(kb[rel]['name'])))
 
-  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None, sub_facts=None):
+  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None, question_embedding=None, sub_facts=None):
     """Return the PPR vector for the given seed and adjacency matrix.
 
       Algorithm : Parses sling KB - extracts subj, obj, rel triple and stores
@@ -213,12 +220,11 @@ class CsrData(object):
             tmp_rdict[subj_id] = {}
           tmp_rdict[subj_id][obj_id] = rel_id
 
-          if rel_id not in relation_map:
-            relation_map[rel_id] = [[], []]
-
           if decompose_ppv:
-            relation_map[rel_id][0].append(subj_id)
-            relation_map[rel_id][1].append(obj_id)
+            if rel not in relation_map:
+              relation_map[rel] = [[], []]
+            relation_map[rel][0].append(subj_id)
+            relation_map[rel][1].append(obj_id)
           else:
             all_row_ones.append(subj_id)
             all_col_ones.append(obj_id)
@@ -252,15 +258,17 @@ class CsrData(object):
         relation_map[rel] = normalize(m, norm='l1', axis=1)
 
         # TODO(vidhisha) : Add this during Relation Training
-        # if RELATION_WEIGHTING:
-        #   if rel not in relation_embeddings:
-        #     score = NOTFOUNDSCORE
-        #   else:
-        #     score = np.dot(question_embedding, relation_embeddings[rel]) / (
-        #         np.linalg.norm(question_embedding) *
-        #         np.linalg.norm(relation_embeddings[rel]))
-        #   relation_map[rel] = relation_map[rel] * np.power(score, EXPONENT)
+        if FLAGS.relation_weighting:
+          relation_embeddings = pkl.load(open(file_paths['rel_emb']))
+          if rel not in relation_embeddings:
+            score = self.NOTFOUNDSCORE
+          else:
+            score = np.dot(question_embedding, relation_embeddings[rel]) / (
+                np.linalg.norm(question_embedding) *
+                np.linalg.norm(relation_embeddings[rel]))
+          relation_map[rel] = relation_map[rel] * np.power(score, self.EXPONENT)
       adj_mat = sum(relation_map.values()) / len(relation_map)
+      adj_mat = normalize(adj_mat, norm="l1", axis=1)
 
     else:  # KB Level Adjacency Matrix
       adj_mat = sparse.csr_matrix(
@@ -311,7 +319,7 @@ class CsrData(object):
       op4.close()
     return obj
 
-  def load_csr_data(self, full_wiki, files_dir, mode=None, task_id=None, shard_id=None):
+  def load_csr_data(self, full_wiki, files_dir, mode=None, task_id=None, shard_id=None, question_id=None):
     """Load saved KB data in CSR format."""
     if files_dir == 'None':
       return
@@ -320,7 +328,7 @@ class CsrData(object):
     else:
       shard_level = False
     tf.logging.info("""Load saved KB files.""")
-    file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id)
+    file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id, question_id)
     tf.logging.info('KB Related filenames: %s'%(file_paths))
     print(file_paths)
     tf.logging.info('Loading adj_mat')

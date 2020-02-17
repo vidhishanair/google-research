@@ -45,11 +45,11 @@ flags.DEFINE_bool(
 class ApproximatePageRank(object):
   """APR main lib which is used to wrap functions around ppr algo."""
 
-  def __init__(self, mode=None, task_id=None, shard_id=None):
+  def __init__(self, mode=None, task_id=None, shard_id=None, question_id=None):
     self.data = CsrData()
     self.data.load_csr_data(
         full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir,
-        mode=mode, task_id=task_id, shard_id=shard_id)
+        mode=mode, task_id=task_id, shard_id=shard_id, question_id=question_id)
     self.high_freq_relations = {'P31': 'instance of',
                                 'P17': 'country',
                                 'P131': 'located in the administrative territorial entity',
