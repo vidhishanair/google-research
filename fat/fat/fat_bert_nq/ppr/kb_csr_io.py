@@ -259,10 +259,10 @@ class CsrData(object):
         # TODO(vidhisha) : Add this during Relation Training
         if FLAGS.relation_weighting:
           relation_embeddings = pkl.load(open(file_paths['rel_emb'], 'rb'))
-          if rel not in relation_embeddings:
-            score = self.NOTFOUNDSCORE
-          else:
-            score = np.dot(question_embedding, relation_embeddings[rel]) / (
+          # if rel not in relation_embeddings:
+          #   score = self.NOTFOUNDSCORE
+          # else:
+          score = np.dot(question_embedding, relation_embeddings[rel]) / (
                 np.linalg.norm(question_embedding) *
                 np.linalg.norm(relation_embeddings[rel]))
           relation_map[rel] = relation_map[rel] * np.power(score, self.EXPONENT)
