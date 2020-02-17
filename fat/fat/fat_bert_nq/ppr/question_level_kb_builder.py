@@ -54,10 +54,7 @@ flags.DEFINE_string(
 flags.DEFINE_integer(
     "csr_num_hops", 2,
     "Num of hops for csr creation")
-flags.DEFINE_string(
-    "mode", "train",
-    "Train and dev split to read from and write to. Accepted values: ['train', 'dev', 'test']"
-)
+
 #flags.DEFINE_integer("task_id", 0,
 #                             "Train and dev shard to read from and write to.")
 #flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
@@ -119,7 +116,7 @@ if __name__ == '__main__':
     print(FLAGS.full_wiki)
     print(FLAGS.decompose_ppv)
     print(FLAGS.apr_files_dir)
-    question_emb_file = nq_data_utils.get_sharded_filename(FLAGS.question_emb_dir, FLAGS.mode, FLAGS.task_id, FLAGS.shard_id, 'pkl')
+    question_emb_file = nq_data_utils.get_sharded_filename(FLAGS.question_emb_dir, FLAGS.split, FLAGS.task_id, FLAGS.shard_split_id, 'pkl')
     question_embeddings = pkl.load(open(question_emb_file))
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
