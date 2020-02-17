@@ -54,6 +54,10 @@ flags.DEFINE_string(
 flags.DEFINE_integer(
     "csr_num_hops", 2,
     "Num of hops for csr creation")
+flags.DEFINE_string(
+    "mode", "train",
+    "Train and dev split to read from and write to. Accepted values: ['train', 'dev', 'test']"
+)
 #flags.DEFINE_integer("task_id", 0,
 #                             "Train and dev shard to read from and write to.")
 #flags.DEFINE_string('apr_files_dir', 'None', 'Read and Write apr data')
