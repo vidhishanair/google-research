@@ -26,7 +26,7 @@ import time
 import json
 import os
 import tempfile
-import pkl
+import pickle as pkl
 
 import numpy as np
 import scipy.sparse as sparse

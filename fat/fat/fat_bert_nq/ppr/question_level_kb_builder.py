@@ -23,7 +23,7 @@ from __future__ import print_function
 import gc
 import time
 import gzip
-import pkl
+import pickle as pkl
 import json
 import os
 import tempfile
