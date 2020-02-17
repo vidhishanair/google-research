@@ -30,7 +30,7 @@ import numpy as np
 import tensorflow as tf
 from fat.fat_bert_nq.ppr.apr_algo import csr_personalized_pagerank
 from fat.fat_bert_nq.ppr.apr_algo import csr_topk_fact_extractor
-from fat.fat_bert_nq.ppr.apr_algo import csr_get_k_hop_entities
+from fat.fat_bert_nq.ppr.apr_algo import csr_get_k_hop_entities, csr_get_k_hop_facts
 from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
 
 flags = tf.flags
@@ -69,6 +69,20 @@ class ApproximatePageRank(object):
         self.data.id2ent[str(x)] for x in khop_entity_ids if str(x) in self.data.id2ent.keys()
     ]
     return khop_entities
+
+  def get_khop_facts(self, seeds, k_hop):
+      print("id2ent size: %d", len(self.data.id2ent))
+      entity_ids = [
+          int(self.data.ent2id[x]) for x in seeds if x in self.data.ent2id
+      ]
+      khop_entity_ids, khop_facts = csr_get_k_hop_facts(entity_ids, self.data.adj_mat_t_csr, self.data.rel_dict, k_hop)
+      khop_entities = [
+          self.data.id2ent[str(x)] for x in khop_entity_ids if str(x) in self.data.id2ent.keys()
+      ]
+      khop_facts = [
+          (self.data.id2ent[str(s)], self.data.id2rel[str(r)], self.data.id2ent[str(o)]) for (s,r,o) in khop_facts
+      ]
+      return khop_entities, khop_facts
 
   def get_topk_extracted_ent(self, seeds, alpha, topk):
     """Extract topk entities given seeds.

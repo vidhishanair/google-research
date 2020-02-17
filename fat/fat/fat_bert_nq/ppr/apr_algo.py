@@ -91,6 +91,46 @@ def csr_get_k_hop_entities(seeds, adj_mat, k_hop):
     k_hop_entities.extend(objects)
   return k_hop_entities
 
+def csr_get_k_hop_facts(seeds, adj_mat, rel_dict, k_hop):
+  """Return entities within k hop distance.
+
+  Args:
+    seeds: A list of seed entity ids
+    adj_mat: A sparse matrix of size E x E whose rows sum to one.
+    k_hop: No: of hops to extract entities from
+
+  Returns:
+      facts: A list of entities within k hop distance
+  """
+  k_hop_entities = seeds
+  facts = []
+  for i in range(k_hop):
+    # Slicing adjacency matrix to subgraph of all extracted entities
+    #print(seeds)
+    submat = adj_mat[:, seeds]
+
+    # Extracting non-zero entity pairs
+    row, col = submat.nonzero()
+    objects = []
+    for ii in range(row.shape[0]):
+      obj_id = row[ii]
+      subj_id = seeds[col[ii]]
+      fwd_dir = (subj_id, obj_id)
+      rev_dir = (obj_id, subj_id)
+      rel_id = rel_dict[fwd_dir]
+      if rel_id == 0:  # no relation from subj to obj
+        # Checking for relation from obj to subj
+        rel_id = rel_dict[rev_dir]
+        if rel_id == 0:
+          continue
+        subj_id, obj_id = obj_id, subj_id
+      facts.append((subj_id, rel_id, obj_id))
+      objects.append(obj_id)
+    objects = list(set(objects))
+    seeds = objects
+    k_hop_entities.extend(objects)
+  return k_hop_entities, list(set(facts))
+
 def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
   """Return list of shortest paths between question and answer seeds.
 

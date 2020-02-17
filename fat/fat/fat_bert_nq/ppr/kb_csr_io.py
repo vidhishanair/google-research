@@ -104,7 +104,27 @@ class CsrData(object):
       file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
     return file_paths
 
-  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None):
+  def get_next_fact(self, kb, full_wiki, sub_entities, sub_facts):
+    if sub_facts is not None:
+      for item in sub_facts:
+        yield item
+    else:
+      count = 0
+      for x in kb:
+        count += 1
+        if not full_wiki and count == 100000:
+          break  # For small KB Creation
+        if sling_utils.is_subj(x, kb):
+          subj = x.id
+          if sub_entities is not None and subj not in sub_entities:
+            continue
+          properties = sling_utils.get_properties(x, kb)
+          for (rel, obj) in properties:
+            if sub_entities is not None and (obj not in sub_entities):
+              continue
+            yield (subj, obj, rel)
+
+  def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None, sub_facts=None):
     """Return the PPR vector for the given seed and adjacency matrix.
 
       Algorithm : Parses sling KB - extracts subj, obj, rel triple and stores
@@ -144,32 +164,28 @@ class CsrData(object):
 
     if sub_entities is not None:
         sub_entities = {k:1 for k in sub_entities}
-    # if shard_level:
-    #   num_entities = sling_utils.get_num_entities(kb, full_wiki, sub_entities)
-    # else:
-    #   num_entities = FLAGS.total_kb_entities
-    # print("Num entities: %d", num_entities)
 
-    # Using pre-calculated entity count - since we need pre-created matrix
-    #rel_dict = sparse.dok_matrix((num_entities, num_entities), dtype=np.int16)
     tmp_rdict = {}
     relation_map = {}
     all_row_ones, all_col_ones = [], []
     count = 0
 
     tf.logging.info('Processing KB')
-    for x in kb:
-      count += 1
-      if not full_wiki and count == 100000:
-        break  # For small KB Creation
-      if sling_utils.is_subj(x, kb):
-        subj = x.id
-        if sub_entities is not None and subj not in sub_entities:
-          continue
-        properties = sling_utils.get_properties(x, kb)
-        for (rel, obj) in properties:
-          if sub_entities is not None and (obj not in sub_entities):
-            continue
+
+    # for x in kb:
+    #   count += 1
+    #   if not full_wiki and count == 100000:
+    #     break  # For small KB Creation
+    #   if sling_utils.is_subj(x, kb):
+    #     subj = x.id
+    #     if sub_entities is not None and subj not in sub_entities:
+    #       continue
+    #     properties = sling_utils.get_properties(x, kb)
+    #     for (rel, obj) in properties:
+    #       if sub_entities is not None and (obj not in sub_entities):
+    #         continue
+
+    for (subj, obj, rel) in self.get_next_fact(kb, full_wiki, sub_entities, sub_facts):
 
           if subj not in ent2id:
             ent2id[subj] = len(ent2id)
@@ -315,6 +331,10 @@ class CsrData(object):
 
     tf.logging.info('Loading id2ent')
     self.id2ent = self.load_json_gz(file_paths['id2ent_fname'])
+
+    tf.logging.info('Loading rel2id')
+    self.rel2id = self.load_json_gz(file_paths['rel2id_fname'])
+    self.id2rel = {idx: ent for ent, idx in self.rel2id.items()}
 
     # Performing this once instead of for every iteration
     self.adj_mat_t_csr = self.adj_mat.transpose().tocsr()

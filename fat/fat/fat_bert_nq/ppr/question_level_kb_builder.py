@@ -136,14 +136,16 @@ if __name__ == '__main__':
                         st = time.time()
                         print(example_id)
                         print("Size of all entities: %d", len(question_entities))
-                        two_hop_entities = apr.get_khop_entities(question_entities, FLAGS.csr_num_hops)
-                        print("Size of two hop entities: %d", len(two_hop_entities))
+                        k_hop_entities, k_hop_facts = apr.get_khop_facts(question_entities, FLAGS.csr_num_hops)
+                        print("Size of two hop entities: %d", len(k_hop_entities))
+                        print("Size of two hop facts: %d", len(k_hop_facts))
                         csr_data = CsrData()
                         csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
                                                           decompose_ppv=FLAGS.decompose_ppv,
                                                           files_dir=FLAGS.apr_files_dir,
-                                                          sub_entities=two_hop_entities,
-                                                          question_id=example_id)
+                                                          sub_entities=k_hop_entities,
+                                                          question_id=example_id,
+                                                          sub_facts=k_hop_facts)
                         print('Time taken for CSR: '+str(time.time() - st))
                             
 
