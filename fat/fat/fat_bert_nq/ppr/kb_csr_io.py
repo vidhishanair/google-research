@@ -22,6 +22,7 @@ from __future__ import print_function
 
 import gc
 import gzip
+import time
 import json
 import os
 import tempfile
@@ -104,11 +105,12 @@ class CsrData(object):
       file_paths = {k: os.path.join(files_dir, v) for k, v in files.items()}
     return file_paths
 
-  def get_next_fact(self, kb, full_wiki, sub_entities, sub_facts):
+  def get_next_fact(self, file_paths, full_wiki, sub_entities, sub_facts):
     if sub_facts is not None:
       for item in sub_facts:
         yield item
     else:
+      kb = sling_utils.get_kb(file_paths['kb_fname'])
       count = 0
       for x in kb:
         count += 1
@@ -122,7 +124,9 @@ class CsrData(object):
           for (rel, obj) in properties:
             if sub_entities is not None and (obj not in sub_entities):
               continue
-            yield (subj, obj, rel)
+            yield ((subj, str(kb[subj]['name'])),
+                   (obj, str(kb[obj]['name'])),
+                   (rel, str(kb[rel]['name'])))
 
   def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None, sub_facts=None):
     """Return the PPR vector for the given seed and adjacency matrix.
@@ -152,7 +156,7 @@ class CsrData(object):
     tf.logging.info('KB Related filenames: %s'%(file_paths))
     print(file_paths)
     tf.logging.info('Loading KB')
-    kb = sling_utils.get_kb(file_paths['kb_fname'])
+    # kb = sling_utils.get_kb(file_paths['kb_fname'])
 
     # Initializing Dictionaries
     ent2id = dict()
@@ -185,8 +189,8 @@ class CsrData(object):
     #       if sub_entities is not None and (obj not in sub_entities):
     #         continue
 
-    for (subj, obj, rel) in self.get_next_fact(kb, full_wiki, sub_entities, sub_facts):
-
+    for ((subj, subj_name), (obj, obj_name), (rel,rel_name)) in self.get_next_fact(file_paths, full_wiki, sub_entities, sub_facts):
+          st = time.time()
           if subj not in ent2id:
             ent2id[subj] = len(ent2id)
           if obj not in ent2id:
@@ -198,11 +202,11 @@ class CsrData(object):
           rel_id = rel2id[rel]
           
           entity_names['e'][subj_id] = dict()
-          entity_names['e'][subj_id]['name'] = str(kb[subj]['name'])
+          entity_names['e'][subj_id]['name'] = subj_name
           entity_names['e'][obj_id] = dict()
-          entity_names['e'][obj_id]['name'] = str(kb[obj]['name'])
+          entity_names['e'][obj_id]['name'] = obj_name
           entity_names['r'][rel_id] = dict()
-          entity_names['r'][rel_id]['name'] = str(kb[rel]['name'])
+          entity_names['r'][rel_id]['name'] = rel_name
 
           # rel_dict[(subj_id, obj_id)] = rel_id
           if subj_id not in tmp_rdict:
@@ -221,6 +225,7 @@ class CsrData(object):
             # Add the below for forcing bidirectional graphs
             # all_row_ones.append(obj_id)
             # all_col_ones.append(subj_id)
+          print('Time taken for one: '+str(time.time() - st))
 
     kb = None
     gc.collect()
