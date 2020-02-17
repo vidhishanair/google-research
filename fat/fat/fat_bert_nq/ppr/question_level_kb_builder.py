@@ -44,7 +44,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string('nq_dir', '/remote/bones/user/vbalacha/datasets/ent_linked_nq_new/', 'Read nq data to extract entities')
 flags.DEFINE_string('question_emb_dir', '/remote/bones/user/vbalacha/datasets/nq_question_embeddings/', 'input questions dict')
-flags.DEFINE_string('relation_emb_file', '/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/downweight_three_hop_kb/csr_relation_embeddings.pkl', 'input questions dict')
+flags.DEFINE_string('relation_emb_file', '/remote/bones/user/vbalacha/google-research/fat/fat/fat_bert_nq/files/question_downweight_three_hop_kb/csr_relation_embeddings.pkl', 'input questions dict')
 flags.DEFINE_integer("shard_split_id", None,
                      "Train and dev shard to read from and write to.")
 
@@ -157,11 +157,11 @@ if __name__ == '__main__':
                     if len(entities) == 0:
                         empty_ents += 1
                     st = time.time()
-                    print(example_id)
-                    print("Size of all entities: %d", len(entities))
+                    #print(example_id)
+                    #print("Size of all entities: %d", len(entities))
                     k_hop_entities, k_hop_facts = apr.get_khop_facts(entities, FLAGS.csr_num_hops)
-                    print("Size of two hop entities: %d", len(k_hop_entities))
-                    print("Size of two hop facts: %d", len(k_hop_facts))
+                    #print("Size of two hop entities: %d", len(k_hop_entities))
+                    #print("Size of two hop facts: %d", len(k_hop_facts))
                     csr_data = CsrData()
                     csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
                                                       decompose_ppv=FLAGS.decompose_ppv,
@@ -171,7 +171,7 @@ if __name__ == '__main__':
                                                       question_embedding=question_embedding,
                                                       relation_embeddings=relation_embeddings,
                                                       sub_facts=k_hop_facts)
-                    print('Time taken for CSR: '+str(time.time() - st))
+                    #print('Time taken for CSR: '+str(time.time() - st))
     print("No ent questions: "+str(empty_ents))
                             
 

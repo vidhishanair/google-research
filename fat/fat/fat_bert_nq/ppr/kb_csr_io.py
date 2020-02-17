@@ -132,8 +132,8 @@ class CsrData(object):
             if sub_entities is not None and (obj not in sub_entities):
               continue
             yield ((subj, str(kb[subj]['name'])),
-                   (obj, str(kb[obj]['name'])),
-                   (rel, str(kb[rel]['name'])))
+                   (rel, str(kb[rel]['name'])),
+                   (obj, str(kb[obj]['name'])))
 
   def create_and_save_csr_data(self, full_wiki, decompose_ppv, files_dir, sub_entities=None, mode=None, task_id=None, shard_id=None, question_id=None, question_embedding=None, relation_embeddings=None, sub_facts=None):
     """Return the PPR vector for the given seed and adjacency matrix.
@@ -196,7 +196,7 @@ class CsrData(object):
     #       if sub_entities is not None and (obj not in sub_entities):
     #         continue
 
-    for ((subj, subj_name), (obj, obj_name), (rel,rel_name)) in self.get_next_fact(file_paths, full_wiki, sub_entities, sub_facts):
+    for ((subj, subj_name), (rel, rel_name), (obj, obj_name)) in self.get_next_fact(file_paths, full_wiki, sub_entities, sub_facts):
           st = time.time()
           if subj not in ent2id:
             ent2id[subj] = len(ent2id)
@@ -255,18 +255,29 @@ class CsrData(object):
             (len(row_ones),)), (np.array(row_ones), np.array(col_ones))),
                               shape=(num_entities, num_entities))
         relation_map[rel] = normalize(m, norm='l1', axis=1)
-
+        relation_map[rel] = m
         # TODO(vidhisha) : Add this during Relation Training
         if FLAGS.relation_weighting:
           # relation_embeddings = pkl.load(open(file_paths['rel_emb'], 'rb'))
-          # if rel not in relation_embeddings:
-          #   score = self.NOTFOUNDSCORE
-          # else:
-          score = np.dot(question_embedding, relation_embeddings[rel]) / (
+          if rel not in relation_embeddings:
+              score = self.NOTFOUNDSCORE
+          else:
+              score = np.dot(question_embedding, relation_embeddings[rel]) / (
                 np.linalg.norm(question_embedding) *
                 np.linalg.norm(relation_embeddings[rel]))
+          #print(np.dot(question_embedding, relation_embeddings[rel]))
+          #print(np.linalg.norm(question_embedding))
+          #print(np.linalg.norm(relation_embeddings[rel]))
+          #print(relation_embeddings[rel])
+          #rid = rel2id[rel]
+          #print(entity_names['r'][rid]['name'])
+          #print(score)
+          assert score <=1 and score >=-1
+          #print(score)
+          #relation_map[rel] = relation_map[rel] * score
           relation_map[rel] = relation_map[rel] * np.power(score, self.EXPONENT)
       adj_mat = sum(relation_map.values()) / len(relation_map)
+      #print(np.isnan(adj_mat.toarray()))
       adj_mat = normalize(adj_mat, norm="l1", axis=1)
 
     else:  # KB Level Adjacency Matrix
