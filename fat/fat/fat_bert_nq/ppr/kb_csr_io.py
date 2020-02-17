@@ -225,7 +225,7 @@ class CsrData(object):
             # Add the below for forcing bidirectional graphs
             # all_row_ones.append(obj_id)
             # all_col_ones.append(subj_id)
-          print('Time taken for one: '+str(time.time() - st))
+          #print('Time taken for one: '+str(time.time() - st))
 
     kb = None
     gc.collect()
