@@ -26,7 +26,7 @@ relation_lens = {}
 with gzip.GzipFile(fileobj=tf.gfile.Open(FLAGS.rel2id_file, 'rb')) as op4:
     rel2id = json.load(op4)
     op4.close()
-id2rel = {idx: ent for ent, idx in rel2id.items()}
+id2rel = {str(idx): ent for ent, idx in rel2id.items()}
 
 def _add_word(word, v):
     if word not in word_to_relation: word_to_relation[word] = []
