@@ -12,6 +12,7 @@ flags = tf.flags
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('relations_file', None, 'input relations dict')
+flags.DEFINE_string('rel2id_file', None, 'input relations dict')
 flags.DEFINE_string('output_file', None, 'output relations dict')
 
 relations_file = FLAGS.relations_file
@@ -21,6 +22,11 @@ dim = 300
 
 word_to_relation = {}
 relation_lens = {}
+
+with gzip.GzipFile(fileobj=tf.gfile.Open(FLAGS.rel2id_file, 'rb')) as op4:
+    rel2id = json.load(op4)
+    op4.close()
+id2rel = {idx: ent for ent, idx in rel2id.items()}
 
 def _add_word(word, v):
     if word not in word_to_relation: word_to_relation[word] = []
@@ -35,7 +41,8 @@ with gzip.GzipFile(fileobj=tf.gfile.Open(relations_file, 'rb')) as op4:
     for rel_id, val in relations.items():
         rel_name = val['name']
         for word in rel_name.split():
-            _add_word(word, rel_id)
+            rel = id2rel[rel_id]
+            _add_word(word, rel)
 
 relation_emb = {r: np.zeros((dim,)) for r in relation_lens}
 with open(embeddings_file) as f:
