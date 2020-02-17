@@ -116,6 +116,7 @@ if __name__ == '__main__':
     max_tasks = {"train": 50, "dev": 5}
     max_shards = {"train": 7, "dev": 17}
     apr = ApproximatePageRank()
+    empty_ents = 0
     for mode in [FLAGS.split]:
         # Parse all shards in each mode
         # Currently sequentially, can be parallelized later
@@ -129,23 +130,36 @@ if __name__ == '__main__':
                     print("No examples here")
                     continue
                 for counter, item in nq_data.items():
-                    question_entities = []
+                    entities = []
                     example_id = item['example_id']
                     if 'question_entity_map' in item.keys():
-                        question_entities.extend([ ent for k, v in item['question_entity_map'].items() for (ids, ent) in v ])
-                        st = time.time()
-                        print(example_id)
-                        print("Size of all entities: %d", len(question_entities))
-                        k_hop_entities, k_hop_facts = apr.get_khop_facts(question_entities, FLAGS.csr_num_hops)
-                        print("Size of two hop entities: %d", len(k_hop_entities))
-                        print("Size of two hop facts: %d", len(k_hop_facts))
-                        csr_data = CsrData()
-                        csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
-                                                          decompose_ppv=FLAGS.decompose_ppv,
-                                                          files_dir=FLAGS.apr_files_dir,
-                                                          sub_entities=k_hop_entities,
-                                                          question_id=example_id,
-                                                          sub_facts=k_hop_facts)
-                        print('Time taken for CSR: '+str(time.time() - st))
+                        entities.extend([ ent for k, v in item['question_entity_map'].items() for (ids, ent) in v ])
+                    # for ann in item["annotations"]:
+                    #     if 'entity_map' in ann['long_answer'].keys():
+                    #         entities.extend([ ent for k, v in ann["long_answer"]["entity_map"].items() for (ids, ent) in v ])
+                    # for cand in item["long_answer_candidates"]:
+                    #     if 'entity_map' in cand.keys():
+                    #         entities.extend([ ent for k, v in cand["entity_map"].items() for (ids, ent) in v ])
+                    # for ann in item["annotations"]:
+                    #     for sa in ann['short_answers']:
+                    #         if 'entity_map' in sa.keys():
+                    #             entities.extend([ ent for k, v in sa["entity_map"].items() for (ids, ent) in v ])
+                    if len(entities) == 0:
+                        empty_ents += 1
+                    st = time.time()
+                    print(example_id)
+                    print("Size of all entities: %d", len(entities))
+                    k_hop_entities, k_hop_facts = apr.get_khop_facts(entities, FLAGS.csr_num_hops)
+                    print("Size of two hop entities: %d", len(k_hop_entities))
+                    print("Size of two hop facts: %d", len(k_hop_facts))
+                    csr_data = CsrData()
+                    csr_data.create_and_save_csr_data(full_wiki=FLAGS.full_wiki,
+                                                      decompose_ppv=FLAGS.decompose_ppv,
+                                                      files_dir=FLAGS.apr_files_dir,
+                                                      sub_entities=k_hop_entities,
+                                                      question_id=example_id,
+                                                      sub_facts=k_hop_facts)
+                    print('Time taken for CSR: '+str(time.time() - st))
+    print("No ent questions: "+str(empty_ents))
                             
 

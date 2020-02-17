@@ -129,7 +129,7 @@ def csr_get_k_hop_facts(seeds, adj_mat, rel_dict, k_hop):
     objects = list(set(objects))
     seeds = objects
     k_hop_entities.extend(objects)
-  return k_hop_entities, list(set(facts))
+  return list(set(k_hop_entities)), list(set(facts))
 
 def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
   """Return list of shortest paths between question and answer seeds.
