@@ -220,14 +220,13 @@ class CsrData(object):
             tmp_rdict[subj_id] = {}
           tmp_rdict[subj_id][obj_id] = rel_id
 
-          if decompose_ppv:
-            if rel not in relation_map:
+          if rel not in relation_map:
               relation_map[rel] = [[], []]
-            relation_map[rel][0].append(subj_id)
-            relation_map[rel][1].append(obj_id)
-          else:
-            all_row_ones.append(subj_id)
-            all_col_ones.append(obj_id)
+          relation_map[rel][0].append(subj_id)
+          relation_map[rel][1].append(obj_id)
+
+          all_row_ones.append(subj_id)
+          all_col_ones.append(obj_id)
             # Add the below for forcing bidirectional graphs
             # all_row_ones.append(obj_id)
             # all_col_ones.append(subj_id)
@@ -249,7 +248,7 @@ class CsrData(object):
     del tmp_rdict
 
     print('Building Sparse Matrix')
-    if decompose_ppv:  # Relation Level Sparse Matrices to weight accordingly
+    if decompose_ppv and len(relation_map)>0:  # Relation Level Sparse Matrices to weight accordingly
       for rel in relation_map:
         row_ones, col_ones = relation_map[rel]
         m = sparse.csr_matrix((np.ones(
