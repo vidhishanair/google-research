@@ -81,7 +81,7 @@ class ApproximatePageRank(object):
       ]
       khop_facts = [
           ((self.data.id2ent[str(s)], self.data.entity_names['e'][str(s)]),
-           (self.data.id2rel[str(r)], self.data.entity_names['r'][str(r)]),
+           (self.data.id2rel[r], self.data.entity_names['r'][str(r)]),
            (self.data.id2ent[str(o)], self.data.entity_names['e'][str(0)])) for (s,r,o) in khop_facts
       ]
       return khop_entities, khop_facts
