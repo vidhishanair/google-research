@@ -28,7 +28,8 @@ from __future__ import print_function
 import random
 import numpy as np
 import tensorflow as tf
-from fat.fat_bert_nq.ppr.apr_algo import csr_personalized_pagerank
+from fat.fat_bert_nq.ppr.apr_algo import csr_personalized_pagerank, csr_get_random_facts_of_question, \
+    csr_get_shortest_path, csr_get_all_paths
 from fat.fat_bert_nq.ppr.apr_algo import csr_topk_fact_extractor
 from fat.fat_bert_nq.ppr.apr_algo import csr_get_k_hop_entities, csr_get_k_hop_facts
 from fat.fat_bert_nq.ppr.kb_csr_io import CsrData
@@ -248,8 +249,9 @@ class ApproximatePageRank(object):
           tf.logging.info('Getting subgraph')
       question_entity_ids = [int(self.data.ent2id[x]) for x in question_entities if x in self.data.ent2id]
       random_facts = csr_get_random_facts_of_question(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict)
-      random_facts = random_facts[:FLAGS.num_]
-      augmented_facts = self.get_augmented_facts(extracted_paths, self.data.entity_names)
+      if FLAGS.num_facts_limit > 0:
+          random_facts = random_facts[0:FLAGS.num_facts_limit]
+      augmented_facts = self.get_augmented_facts(random_facts, self.data.entity_names)
       return augmented_facts
 
 

@@ -112,10 +112,10 @@ flags.DEFINE_bool(
     "Whether to retreive random facts "
     "models and False for cased models.")
 
-flags.DEFINE_bool(
-    "use_question_entities", False,
-    "Whether to use question entities as seeds "
-    "models and False for cased models.")
+# flags.DEFINE_bool(
+#     "use_question_entities", False,
+#     "Whether to use question entities as seeds "
+#     "models and False for cased models.")
 flags.DEFINE_bool(
     "mask_non_entity_in_text", False,
     "Whether to mask non entity tokens "
@@ -141,6 +141,7 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_named_entities_to_filter", False,
     "Whether to use_ner_to_filter")
+
 flags.DEFINE_bool(
     "use_shortest_path_facts", False,
     "Whether to do shortest_path expt")
@@ -152,14 +153,21 @@ flags.DEFINE_bool(
     "Whether to retreive random facts "
     "models and False for cased models.")
 flags.DEFINE_bool(
-    "use_rw_facts_in_shortest_path", False,
+    "add_random_walk_question_facts_to_shortest_path", False,
+    "Whether to retreive random walk facts "
+    "models and False for cased models.")
+flags.DEFINE_bool(
+    "use_passage_rw_facts_in_shortest_path", False,
+    "Whether to do shuffle hortest_path expt")
+flags.DEFINE_bool(
+    "use_question_rw_facts_in_shortest_path", False,
     "Whether to do shuffle hortest_path expt")
 flags.DEFINE_bool(
     "create_fact_annotation_data", False,
     "Whether to do shuffle hortest_path expt")
-flags.DEFINE_bool(
-    "use_only_random_facts_of_question", False,
-    "Whether to use only random_facts")
+# flags.DEFINE_bool(
+#     "use_only_random_facts_of_question", False,
+#     "Whether to use only random_facts")
 flags.DEFINE_bool(
     "use_question_to_passage_facts", False,
     "Whether to use only question to passage facts")
@@ -744,12 +752,10 @@ def convert_examples_to_features(examples, tokenizer, is_training, output_fn, pr
   mode = 'train' if is_training else 'dev'
   apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
                                 shard_id=FLAGS.shard_split_id)
-  shortest_path_obj = ShortestPath(mode=mode, task_id=FLAGS.task_id,
-                                shard_id=FLAGS.shard_split_id)
 
   for example in examples:
     example_index = example.example_id
-    features, stats = convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_training, pretrain_file)
+    features, stats = convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file)
     num_spans_to_ids[len(features)].append(example.qas_id)
 
     for feature in features:
@@ -796,9 +802,10 @@ def check_is_max_context(doc_spans, cur_span_index, position):
   return cur_span_index == best_span_index
 
 
-def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, shortest_path_obj,
+def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
                       tokenizer, question_entity_map, answer=None, ner_entity_list=None,
-                      all_doc_tokens=None, fp=None, override_shortest_path=False, use_passage_seeds=True. use_question_seeds=False):
+                      all_doc_tokens=None, fp=None, override_shortest_path=False, use_passage_seeds=True,
+                      use_question_seeds=False):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -821,17 +828,23 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
           question_entities.add(sub_span[1])
   question_entities = list(question_entities)
 
-  question_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in question_entities if x in shortest_path_obj.data.ent2id]
-  question_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
+  question_entity_ids = [int(apr_obj.data.ent2id[x]) for x in question_entities if x in apr_obj.data.ent2id]
+  question_entity_names = str([apr_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
 
-  answer_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in answer.entities if x in shortest_path_obj.data.ent2id]
-  answer_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
+  answer_entity_ids = [int(apr_obj.data.ent2id[x]) for x in answer.entities if x in apr_obj.data.ent2id]
+  answer_entity_names = str([apr_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
 
   num_hops = None
   if FLAGS.use_shortest_path_facts and not override_shortest_path:
-      facts, num_hops = shortest_path_obj.get_shortest_path_facts(question_entities, answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+      facts, num_hops = apr_obj.get_shortest_path_facts(question_entities, answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+
       if len(facts)>0 and FLAGS.add_random_question_facts_to_shortest_path:
-            facts.append(apr_obj.get_random_facts_of_question(question_entities, answer.entities, passage_entities=[], seed_weighting=True, fp=fp))
+            facts.extend(apr_obj.get_random_facts_of_question(question_entities, answer.entities, passage_entities=[], seed_weighting=True, fp=fp))
+      if len(facts)>0 and FLAGS.add_random_walk_question_facts_to_shortest_path:
+          unique_facts = apr_obj.get_facts(question_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
+          sorted_facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
+          facts.extend(sorted_facts)
+
       if FLAGS.shuffle_shortest_path_facts:
           random.shuffle(facts)
       if FLAGS.use_entity_markers:
@@ -861,7 +874,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
           if FLAGS.use_named_entities_to_filter:
             seed_entities.extend([x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None'])
           else:
-            seed_entitie.extend([x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')])
+            seed_entities.extend([x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')])
       if use_question_seeds:
         if FLAGS.verbose_logging:
             print('Question seed entities: '+str(list(question_entities)))
@@ -908,7 +921,7 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
     nl_fact_tokens.extend(sub_tokens)
   return nl_fact_tokens, num_hops, question_entity_names, answer_entity_names
 
-def get_all_question_answer_paths(shortest_path_obj,
+def get_all_question_answer_paths(apr_obj,
                       tokenizer, question_entity_map, answer=None, ner_entity_list=None,
                       all_doc_tokens=None, fp=None):
     """For a given doc span, use seed entities, do APR, return related facts.
@@ -932,14 +945,14 @@ def get_all_question_answer_paths(shortest_path_obj,
         for sub_span in question_entity_map[start_idx]:
             question_entities.add(sub_span[1])
 
-    question_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in list(question_entities) if x in shortest_path_obj.data.ent2id]
-    question_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
+    question_entity_ids = [int(apr_obj.data.ent2id[x]) for x in list(question_entities) if x in apr_obj.data.ent2id]
+    question_entity_names = str([apr_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
 
-    answer_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in answer.entities if x in shortest_path_obj.data.ent2id]
-    answer_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
+    answer_entity_ids = [int(apr_obj.data.ent2id[x]) for x in answer.entities if x in apr_obj.data.ent2id]
+    answer_entity_names = str([apr_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
     
     num_hops = None
-    facts, num_hops = shortest_path_obj.get_all_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+    facts, num_hops = apr_obj.get_all_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
 
     nl_facts = [" . ".join([
             str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
@@ -948,7 +961,7 @@ def get_all_question_answer_paths(shortest_path_obj,
     #print(nl_facts)
     return nl_facts, num_hops, question_entity_names, answer_entity_names
 
-def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list, shortest_path_obj,
+def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list, apr_obj,
                                   tokenizer, question_entity_map, answer=None, ner_entity_list=None,
                                   all_doc_tokens=None, fp=None):
     """For a given doc span, use seed entities, do APR, return related facts.
@@ -972,11 +985,11 @@ def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list
         for sub_span in question_entity_map[start_idx]:
             question_entities.add(sub_span[1])
 
-    question_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in list(question_entities) if x in shortest_path_obj.data.ent2id]
-    question_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
+    question_entity_ids = [int(apr_obj.data.ent2id[x]) for x in list(question_entities) if x in apr_obj.data.ent2id]
+    question_entity_names = str([apr_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
 
-    answer_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in answer.entities if x in shortest_path_obj.data.ent2id]
-    answer_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
+    answer_entity_ids = [int(apr_obj.data.ent2id[x]) for x in answer.entities if x in apr_obj.data.ent2id]
+    answer_entity_names = str([apr_obj.data.entity_names['e'][str(x)]['name'] for x in answer_entity_ids])
 
     start_index = token_to_textmap_index[doc_span.start]
     end_index = token_to_textmap_index[min( doc_span.start + doc_span.length - 1,
@@ -990,7 +1003,7 @@ def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list
         passage_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
 
     num_hops = None
-    facts, num_hops = shortest_path_obj.get_question_to_passage_facts(list(question_entities), answer.entities, passage_entities=passage_entities, seed_weighting=True, fp=fp)
+    facts, num_hops = apr_obj.get_question_to_passage_facts(list(question_entities), answer.entities, passage_entities=passage_entities, seed_weighting=True, fp=fp)
 
     nl_facts = " . ".join([" . ".join([
         str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
@@ -1010,8 +1023,10 @@ def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list
 
     return nl_fact_tokens, num_hops, question_entity_names, answer_entity_names
 
-def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_training, pretrain_file=None):
+def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file=None):
     """Converts a single NqExample into a list of InputFeatures."""
+    if FLAGS.use_question_level_apr_data:
+        apr_obj = ApproximatePageRank(question_id=example.example_id)
     tok_to_orig_index = []
     tok_to_textmap_index = []
     orig_to_tok_index = []
@@ -1057,7 +1072,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
     #     exit()
 
     if FLAGS.create_fact_annotation_data and is_training:
-        aligned_facts, num_hops, question_entity_names, answer_entity_names = get_all_question_answer_paths(shortest_path_obj,
+        aligned_facts, num_hops, question_entity_names, answer_entity_names = get_all_question_answer_paths(apr_obj,
                                                                tokenizer, example.question_entity_map[-1], example.answer,
                                                                example.ner_entity_list, example.doc_tokens, pretrain_file)
         a = example.annotation
@@ -1102,10 +1117,6 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         if start_offset + length == len(all_doc_tokens):
             break
         start_offset += min(length, FLAGS.doc_stride)
-
-    if FLAGS.use_question_level_apr_data:
-        apr_obj = ApproximatePageRank(question_id=example.example_id)
-        shortest_path_obj = ShortestPath(question_id=example.example_id)
 
     valid_count = 0
     dev_valid_pos_answers = 0
@@ -1246,7 +1257,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 print(example.questions[-1])
                 print(answer_version)
             aligned_facts_subtokens, num_hops, _, _ = get_related_facts(doc_span, tok_to_textmap_index,
-                                                        example.entity_list, apr_obj, shortest_path_obj,
+                                                        example.entity_list, apr_obj,
                                                         tokenizer, example.question_entity_map[-1], example.answer,
                                                         example.ner_entity_list, example.doc_tokens, pretrain_file)
             if len(aligned_facts_subtokens) == 0 :
@@ -1255,7 +1266,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 continue
             if FLAGS.use_passage_rw_facts_in_shortest_path:
                 aligned_facts_subtokens, _, _, _ = get_related_facts(doc_span, tok_to_textmap_index,
-                                                                      example.entity_list, apr_obj, shortest_path_obj,
+                                                                      example.entity_list, apr_obj,
                                                                       tokenizer, example.question_entity_map[-1], example.answer,
                                                                       example.ner_entity_list, example.doc_tokens, pretrain_file,
                                                                       override_shortest_path=True)
@@ -1264,7 +1275,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                     print(aligned_facts_subtokens)
             if FLAGS.use_question_rw_facts_in_shortest_path:
                 aligned_facts_subtokens, _, _, _ = get_related_facts(doc_span, tok_to_textmap_index,
-                                                                      example.entity_list, apr_obj, shortest_path_obj,
+                                                                      example.entity_list, apr_obj,
                                                                       tokenizer, example.question_entity_map[-1], example.answer,
                                                                       example.ner_entity_list, example.doc_tokens, pretrain_file,
                                                                       override_shortest_path=True, use_passage_seeds=False,
@@ -1274,7 +1285,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                     print(aligned_facts_subtokens)
             if FLAGS.use_question_to_passage_facts_in_shortest_path:
                 aligned_facts_subtokens, _, _, _ = get_all_question_passage_paths(doc_span, tok_to_textmap_index,
-                                                                            example.entity_list, shortest_path_obj,
+                                                                            example.entity_list, apr_obj,
                                                                             tokenizer, example.question_entity_map[-1],
                                                                             example.answer,
                                                                             example.ner_entity_list, example.doc_tokens,
@@ -1435,7 +1446,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
         return [], None
     if FLAGS.create_fact_annotation_data and not is_training:
         aligned_facts, num_hops, question_entity_names, answer_entity_names = get_related_facts(None, tok_to_textmap_index,
-                                                                       example.entity_list, apr_obj, shortest_path_obj,
+                                                                       example.entity_list, apr_obj,
                                                                        tokenizer, example.question_entity_map[-1], example.answer,
                                                                        example.ner_entity_list, example.doc_tokens, pretrain_file)
         a = example.annotation
@@ -1505,15 +1516,13 @@ class CreateTFExampleFn(object):
     mode = 'train' if is_training else 'dev'
     self.apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
                                        shard_id=FLAGS.shard_split_id)
-    self.shortest_path_obj = ShortestPath(mode=mode, task_id=FLAGS.task_id,
-                                       shard_id=FLAGS.shard_split_id)
 
   def process(self, example, pretrain_file=None):
     """Coverts an NQ example in a list of serialized tf examples."""
     nq_examples = read_nq_entry(example, self.is_training)
     input_features = []
     for nq_example in nq_examples:
-      features, stat_counts = convert_single_example(nq_example, self.tokenizer, self.apr_obj, self.shortest_path_obj,
+      features, stat_counts = convert_single_example(nq_example, self.tokenizer, self.apr_obj,
                                                 self.is_training, pretrain_file)
       input_features.extend(features)
 
