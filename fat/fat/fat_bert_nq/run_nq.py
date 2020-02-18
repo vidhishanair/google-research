@@ -169,7 +169,7 @@ flags.DEFINE_bool(
 #     "use_only_random_facts_of_question", False,
 #     "Whether to use only random_facts")
 flags.DEFINE_bool(
-    "use_question_to_passage_facts", False,
+    "use_question_to_passage_facts_in_shortest_path", False,
     "Whether to use only question to passage facts")
 flags.DEFINE_bool(
     "use_question_level_apr_data", False,
