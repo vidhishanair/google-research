@@ -50,11 +50,11 @@ flags.DEFINE_integer(
 class ShortestPath(object):
     """Shortest Path main lib which is used to wrap functions around Shortest Path algo."""
 
-    def __init__(self, mode=None, task_id=None, shard_id=None):
+    def __init__(self, mode=None, task_id=None, shard_id=None, question_id=None):
         self.data = CsrData()
         self.data.load_csr_data(
             full_wiki=FLAGS.full_wiki, files_dir=FLAGS.apr_files_dir,
-            mode=mode, task_id=task_id, shard_id=shard_id)
+            mode=mode, task_id=task_id, shard_id=shard_id, question_id=question_id)
         self.high_freq_relations = {'P31': 'instance of',
                                     'P17': 'country',
                                     'P131': 'located in the administrative territorial entity',
@@ -188,14 +188,6 @@ class ShortestPath(object):
 
         freq_dict = {x: question_entity_ids.count(x) for x in question_entity_ids}
 
-        # question_seeds = np.zeros((self.data.adj_mat_t_csr.shape[0], 1))
-        # if not seed_weighting:
-        #     question_seeds[question_entity_ids] = 1. / len(set(question_entity_ids))
-        # else:
-        #     for x, y in freq_dict.items():
-        #         question_seeds[x] = y
-        #     question_seeds = question_seeds / question_seeds.sum()
-
         extracted_paths, num_hops = csr_get_shortest_path(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=FLAGS.k_hop)
         augmented_facts = self.get_augmented_facts(extracted_paths, self.data.entity_names)
 
@@ -262,14 +254,6 @@ class ShortestPath(object):
 
         freq_dict = {x: question_entity_ids.count(x) for x in question_entity_ids}
 
-        # question_seeds = np.zeros((self.data.adj_mat_t_csr.shape[0], 1))
-        # if not seed_weighting:
-        #     question_seeds[question_entity_ids] = 1. / len(set(question_entity_ids))
-        # else:
-        #     for x, y in freq_dict.items():
-        #         question_seeds[x] = y
-        #     question_seeds = question_seeds / question_seeds.sum()
-
         extracted_paths, num_hops = csr_get_all_paths(question_entity_ids, self.data.adj_mat_t_csr, passage_entity_ids, self.data.rel_dict, k_hop=FLAGS.k_hop)
         augmented_facts = self.get_all_path_augmented_facts(extracted_paths, self.data.entity_names)
 
@@ -335,14 +319,6 @@ class ShortestPath(object):
             tf.logging.info(passage_entity_names)
 
         freq_dict = {x: question_entity_ids.count(x) for x in question_entity_ids}
-
-        # question_seeds = np.zeros((self.data.adj_mat_t_csr.shape[0], 1))
-        # if not seed_weighting:
-        #     question_seeds[question_entity_ids] = 1. / len(set(question_entity_ids))
-        # else:
-        #     for x, y in freq_dict.items():
-        #         question_seeds[x] = y
-        #     question_seeds = question_seeds / question_seeds.sum()
 
         extracted_paths, num_hops = csr_get_all_paths(question_entity_ids, self.data.adj_mat_t_csr, answer_entity_ids, self.data.rel_dict, k_hop=FLAGS.k_hop)
         augmented_facts = self.get_all_path_augmented_facts(extracted_paths, self.data.entity_names)

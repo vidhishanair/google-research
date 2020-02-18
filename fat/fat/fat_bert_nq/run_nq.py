@@ -163,6 +163,12 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_question_to_passage_facts", False,
     "Whether to use only question to passage facts")
+flags.DEFINE_bool(
+    "use_question_level_apr_data", False,
+    "Whether to use only question to passage facts")
+# flags.DEFINE_bool(
+#     "override_with_", False,
+#     "Whether to use only question to passage facts")
 
 flags.DEFINE_integer("num_facts_limit", -1,
                      "Limiting number of facts")
@@ -792,7 +798,7 @@ def check_is_max_context(doc_spans, cur_span_index, position):
 
 def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, shortest_path_obj,
                       tokenizer, question_entity_map, answer=None, ner_entity_list=None,
-                      all_doc_tokens=None, fp=None, override_shortest_path=False):
+                      all_doc_tokens=None, fp=None, override_shortest_path=False, use_passage_seeds=True. use_question_seeds=False):
   """For a given doc span, use seed entities, do APR, return related facts.
 
   Args:
@@ -813,8 +819,9 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
   for start_idx in question_entity_map.keys():
       for sub_span in question_entity_map[start_idx]:
           question_entities.add(sub_span[1])
+  question_entities = list(question_entities)
 
-  question_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in list(question_entities) if x in shortest_path_obj.data.ent2id]
+  question_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in question_entities if x in shortest_path_obj.data.ent2id]
   question_entity_names = str([shortest_path_obj.data.entity_names['e'][str(x)]['name'] for x in question_entity_ids])
 
   answer_entity_ids = [int(shortest_path_obj.data.ent2id[x]) for x in answer.entities if x in shortest_path_obj.data.ent2id]
@@ -822,7 +829,9 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
 
   num_hops = None
   if FLAGS.use_shortest_path_facts and not override_shortest_path:
-      facts, num_hops = shortest_path_obj.get_shortest_path_facts(list(question_entities), answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+      facts, num_hops = shortest_path_obj.get_shortest_path_facts(question_entities, answer.entities, passage_entities=[], seed_weighting=True, fp=fp)
+      if len(facts)>0 and FLAGS.add_random_question_facts_to_shortest_path:
+            facts.append(apr_obj.get_random_facts_of_question(question_entities, answer.entities, passage_entities=[], seed_weighting=True, fp=fp))
       if FLAGS.shuffle_shortest_path_facts:
           random.shuffle(facts)
       if FLAGS.use_entity_markers:
@@ -835,30 +844,31 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj, sh
               str(x[0][0][1]) + " " + str(x[1][0][1]) + " " + str(x[0][1][1])
               for x in facts
           ])
-
-      #if fp is not None:
-      #  fp.write(nl_facts+"\n")
   else:
       # Adding this check since empty seeds generate random facts
-      start_index = token_to_textmap_index[doc_span.start]
-      end_index = token_to_textmap_index[min(
-          doc_span.start + doc_span.length - 1,
-          len(token_to_textmap_index) -
-          1)]  # putting this min check need to check all this later
+      seed_entities = []
+      if use_passage_seeds:
+          start_index = token_to_textmap_index[doc_span.start]
+          end_index = token_to_textmap_index[min(
+              doc_span.start + doc_span.length - 1,
+              len(token_to_textmap_index) -
+              1)]  # putting this min check need to check all this later
 
-      sub_list = entity_list[start_index:end_index + 1]
-      sub_ner_list = ner_entity_list[start_index:end_index+1]
-      sub_tokens = all_doc_tokens[start_index:end_index + 1]
+          sub_list = entity_list[start_index:end_index + 1]
+          sub_ner_list = ner_entity_list[start_index:end_index+1]
+          sub_tokens = all_doc_tokens[start_index:end_index + 1]
 
-      if FLAGS.use_named_entities_to_filter:
-        seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None']
-      else:
-        seed_entities = [x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')]
-
-      if FLAGS.use_question_entities:
+          if FLAGS.use_named_entities_to_filter:
+            seed_entities.extend([x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-') and sub_ner_list[idx] != 'None'])
+          else:
+            seed_entitie.extend([x[2:] for idx, x in enumerate(sub_list) if x.startswith('B-')])
+      if use_question_seeds:
         if FLAGS.verbose_logging:
             print('Question seed entities: '+str(list(question_entities)))
         seed_entities.extend(list(question_entities))
+      if not use_passage_seeds and not use_question_seeds:
+        print("One of use_question or use passage seeds must be set. Wrong Usage!")
+        exit()
 
       if seed_entities:
         if FLAGS.use_random_fact_generator:
@@ -1093,6 +1103,10 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
             break
         start_offset += min(length, FLAGS.doc_stride)
 
+    if FLAGS.use_question_level_apr_data:
+        apr_obj = ApproximatePageRank(question_id=example.example_id)
+        shortest_path_obj = ShortestPath(question_id=example.example_id)
+
     valid_count = 0
     dev_valid_pos_answers = 0
     ent_dict = {}
@@ -1239,7 +1253,7 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 if FLAGS.mask_non_entity_in_text and contains_an_annotation:
                     dev_valid_pos_answers -= 1
                 continue
-            if FLAGS.use_rw_facts_in_shortest_path:
+            if FLAGS.use_passage_rw_facts_in_shortest_path:
                 aligned_facts_subtokens, _, _, _ = get_related_facts(doc_span, tok_to_textmap_index,
                                                                       example.entity_list, apr_obj, shortest_path_obj,
                                                                       tokenizer, example.question_entity_map[-1], example.answer,
@@ -1248,7 +1262,17 @@ def convert_single_example(example, tokenizer, apr_obj, shortest_path_obj, is_tr
                 if FLAGS.verbose_logging:
                     print("Newly aligned Facts")
                     print(aligned_facts_subtokens)
-            if FLAGS.use_question_to_passage_facts:
+            if FLAGS.use_question_rw_facts_in_shortest_path:
+                aligned_facts_subtokens, _, _, _ = get_related_facts(doc_span, tok_to_textmap_index,
+                                                                      example.entity_list, apr_obj, shortest_path_obj,
+                                                                      tokenizer, example.question_entity_map[-1], example.answer,
+                                                                      example.ner_entity_list, example.doc_tokens, pretrain_file,
+                                                                      override_shortest_path=True, use_passage_seeds=False,
+                                                                      use_question_seeds=True)
+                if FLAGS.verbose_logging:
+                    print("Newly aligned Facts")
+                    print(aligned_facts_subtokens)
+            if FLAGS.use_question_to_passage_facts_in_shortest_path:
                 aligned_facts_subtokens, _, _, _ = get_all_question_passage_paths(doc_span, tok_to_textmap_index,
                                                                             example.entity_list, shortest_path_obj,
                                                                             tokenizer, example.question_entity_map[-1],

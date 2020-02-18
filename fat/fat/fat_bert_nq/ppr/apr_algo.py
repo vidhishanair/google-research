@@ -197,22 +197,36 @@ def csr_get_shortest_path(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop
           new_paths.append(item)
     path = new_paths.copy()
 
-  if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
-    if FLAGS.use_only_random_facts_of_question:
-      path = []
+#   if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
+#     if FLAGS.use_only_random_facts_of_question:
+#       path = []
+#     submat = adj_mat[:, question_seeds]
+#     row, col = submat.nonzero()
+#     limit = 10
+#     if FLAGS.num_facts_limit > 0:
+#         limit = FLAGS.num_facts_limit
+#     for ii in range(min(row.shape[0],limit)):
+#       obj_id = row[ii]
+#       subj_id = question_seeds[col[ii]]
+#       rel_id = rel_dict[(subj_id, obj_id)]
+#       path.append([(), (obj_id, rel_id, subj_id)])
+  if FLAGS.verbose_logging:
+    print(path)
+  return path, num_hops
+
+def csr_get_random_facts_of_question(question_seeds, adj_mat, answer_seeds, rel_dict):
+    path = []
     submat = adj_mat[:, question_seeds]
     row, col = submat.nonzero()
-    limit = 10
-    if FLAGS.num_facts_limit > 0:
+    limit = 100
+    if FLAGS.num_facts_limit>0:
         limit = FLAGS.num_facts_limit
-    for ii in range(min(row.shape[0],limit)):
+    for ii in range(min(row.shape[0], limit)):
       obj_id = row[ii]
       subj_id = question_seeds[col[ii]]
       rel_id = rel_dict[(subj_id, obj_id)]
       path.append([(), (obj_id, rel_id, subj_id)])
-  if FLAGS.verbose_logging:
-    print(path)
-  return path, num_hops
+    return path
 
 def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
   """Return list of shortest paths between question and answer seeds.
@@ -294,19 +308,6 @@ def csr_get_all_paths(question_seeds, adj_mat, answer_seeds, rel_dict, k_hop):
           new_paths.append(item)
     path = new_paths.copy()
 
-  #print("path here: "+str(path))
-
-  if len(path)>0 and FLAGS.add_random_question_facts_to_shortest_path:
-    submat = adj_mat[:, question_seeds]
-    row, col = submat.nonzero()
-    limit = 10
-    if FLAGS.num_facts_limit > 0:
-      limit = FLAGS.num_facts_limit
-    for ii in range(min(row.shape[0],limit)):
-      obj_id = row[ii]
-      subj_id = question_seeds[col[ii]]
-      rel_id = rel_dict[(subj_id, obj_id)]
-      path.append([(), (subj_id, rel_id, obj_id)])
   if FLAGS.verbose_logging:
     print(path)
 
