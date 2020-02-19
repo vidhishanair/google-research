@@ -843,6 +843,8 @@ def get_related_facts(doc_span, token_to_textmap_index, entity_list, apr_obj,
       if len(facts)>0 and FLAGS.add_random_walk_question_facts_to_shortest_path:
           unique_facts = apr_obj.get_facts(question_entities, topk=200, alpha=FLAGS.alpha, seed_weighting=True)
           sorted_facts = sorted(unique_facts, key=lambda tup: tup[1][1], reverse=True)
+          if FLAGS.num_facts_limit > 0:
+              sorted_facts = sorted_facts[0:FLAGS.num_facts_limit]
           facts.extend(sorted_facts)
 
       if FLAGS.shuffle_shortest_path_facts:
