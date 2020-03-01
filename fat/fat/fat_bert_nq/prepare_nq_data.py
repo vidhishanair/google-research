@@ -100,19 +100,21 @@ def main(_):
       pretrain_file = None
 
   if FLAGS.is_training:
+    fixed_train_list = None
+    if FLAGS.use_fixed_training_data:
+        fp = open(FLAGS.fixed_train_data_filepath)
+        fixed_train_list = []
+        for line in fp:
+            fixed_train_list.append(int(line))
     creator_fn = run_nq.CreateTFExampleFn(is_training=FLAGS.is_training)
     instances = []
     input_file = nq_data_utils.get_sharded_filename(FLAGS.input_data_dir,
                                                     FLAGS.split, FLAGS.task_id,
                                                     FLAGS.shard_split_id,
                                                     "jsonl.gz")
-    #pretrain_file = open(nq_data_utils.get_sharded_filename(FLAGS.pretrain_data_dir,
-    #                                                        FLAGS.split, FLAGS.task_id,
-    #                                                        FLAGS.shard_split_id,
-    #                                                        "txt"), 'w')
     print("Reading file %s", input_file)
     for example in nq_data_utils.get_nq_examples(input_file):
-      for instance in creator_fn.process(example, pretrain_file):
+      for instance in creator_fn.process(example, pretrain_file, fixed_train_list):
         instances.append(instance)
         instances_processed += 1
       if example["has_correct_context"]:

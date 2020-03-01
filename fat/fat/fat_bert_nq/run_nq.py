@@ -174,9 +174,12 @@ flags.DEFINE_bool(
 flags.DEFINE_bool(
     "use_question_level_apr_data", False,
     "Whether to use only question to passage facts")
-# flags.DEFINE_bool(
-#     "override_with_", False,
-#     "Whether to use only question to passage facts")
+flags.DEFINE_bool(
+    "use_fixed_training_data", False,
+    "Whether to use fixed unique ids from list")
+tf.flags.DEFINE_string(
+    "fixed_training_data_filepath", None,
+    "Filepath of fixed training data - unique ids")
 
 flags.DEFINE_integer("num_facts_limit", -1,
                      "Limiting number of facts")
@@ -1025,7 +1028,7 @@ def get_all_question_passage_paths(doc_span, token_to_textmap_index, entity_list
 
     return nl_fact_tokens, num_hops, question_entity_names, answer_entity_names
 
-def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file=None):
+def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_file=None, fixed_train_list=None):
     """Converts a single NqExample into a list of InputFeatures."""
     if FLAGS.use_question_level_apr_data:
         apr_obj = ApproximatePageRank(question_id=example.example_id)
@@ -1140,9 +1143,15 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
                 # span, then we only include it with probability --include_unknowns.
                 # When we include an example with unknown answer type, we set the first
                 # token of the passage to be the annotated short span.
-                if is_training and ((FLAGS.include_unknowns < 0 or
-                        random.random() > FLAGS.include_unknowns)):
+                span_id = (example.example_id + doc_span_index)
+                if is_training and FLAGS.use_fixed_training_data:
+                    if span_id not in fixed_train_list:
+                        continue
+                elif is_training and (FLAGS.include_unknowns < 0 or
+                        random.random() > FLAGS.include_unknowns):
                     continue
+                else:
+                    pass
         # tf.logging.info("Processing Instance")
         tokens = []
         text_only_tokens = []
@@ -1519,13 +1528,13 @@ class CreateTFExampleFn(object):
     self.apr_obj = ApproximatePageRank(mode=mode, task_id=FLAGS.task_id,
                                        shard_id=FLAGS.shard_split_id)
 
-  def process(self, example, pretrain_file=None):
+  def process(self, example, pretrain_file=None, fixed_train_list=None):
     """Coverts an NQ example in a list of serialized tf examples."""
     nq_examples = read_nq_entry(example, self.is_training)
     input_features = []
     for nq_example in nq_examples:
       features, stat_counts = convert_single_example(nq_example, self.tokenizer, self.apr_obj,
-                                                self.is_training, pretrain_file)
+                                                self.is_training, pretrain_file, fixed_train_list)
       input_features.extend(features)
 
     for input_feature in input_features:
