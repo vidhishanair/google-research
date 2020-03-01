@@ -197,6 +197,7 @@ class CsrData(object):
     #         continue
 
     for ((subj, subj_name), (rel, rel_name), (obj, obj_name)) in self.get_next_fact(file_paths, full_wiki, sub_entities, sub_facts):
+          #print(((subj, subj_name), (rel, rel_name), (obj, obj_name)))
           st = time.time()
           if subj not in ent2id:
             ent2id[subj] = len(ent2id)
@@ -340,7 +341,7 @@ class CsrData(object):
     tf.logging.info("""Load saved KB files.""")
     file_paths = self.get_file_names(full_wiki, files_dir, shard_level, mode, task_id, shard_id, question_id)
     tf.logging.info('KB Related filenames: %s'%(file_paths))
-    print(file_paths)
+    #print(file_paths)
     tf.logging.info('Loading adj_mat')
     self.adj_mat = self.safe_load_npz(file_paths['adj_mat_fname'])
     tf.logging.info('Loading rel_dict')
