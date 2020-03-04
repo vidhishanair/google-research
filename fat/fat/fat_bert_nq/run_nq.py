@@ -1137,21 +1137,23 @@ def convert_single_example(example, tokenizer, apr_obj, is_training, pretrain_fi
             # we throw it out, since there is nothing to predict.
             contains_an_annotation = (
                     tok_start_position >= doc_start and tok_end_position <= doc_end)
-            if ((not contains_an_annotation) or
+            span_id = (example.example_id + doc_span_index)
+            if is_training and FLAGS.use_fixed_training_data:
+                if span_id not in fixed_train_list:
+                    continue
+            elif ((not contains_an_annotation) or
                     example.answer.type == AnswerType.UNKNOWN):
                 # If an example has unknown answer type or does not contain the answer
                 # span, then we only include it with probability --include_unknowns.
                 # When we include an example with unknown answer type, we set the first
                 # token of the passage to be the annotated short span.
-                span_id = (example.example_id + doc_span_index)
-                if is_training and FLAGS.use_fixed_training_data:
-                    if span_id not in fixed_train_list:
-                        continue
-                elif is_training and (FLAGS.include_unknowns < 0 or
+                # span_id = (example.example_id + doc_span_index)
+                if is_training and (FLAGS.include_unknowns < 0 or
                         random.random() > FLAGS.include_unknowns):
+                    print("How here")
                     continue
-                else:
-                    pass
+            else:
+                pass
         # tf.logging.info("Processing Instance")
         tokens = []
         text_only_tokens = []

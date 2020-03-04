@@ -102,7 +102,7 @@ def main(_):
   if FLAGS.is_training:
     fixed_train_list = None
     if FLAGS.use_fixed_training_data:
-        fp = open(FLAGS.fixed_train_data_filepath)
+        fp = open(FLAGS.fixed_training_data_filepath)
         fixed_train_list = []
         for line in fp:
             fixed_train_list.append(int(line))
